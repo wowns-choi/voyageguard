@@ -24,17 +24,17 @@ public class InventoryService {
     }
 
     public void decrease(Long id, int quantity) {
-        Inventory inventory = getInventory(id);
+        Inventory inventory = getInventoryForUpdate(id);
         inventory.decrease(quantity);
     }
 
     public void increase(Long id, int quantity) {
-        Inventory inventory = getInventory(id);
+        Inventory inventory = getInventoryForUpdate(id);
         inventory.increase(quantity);
     }
 
-    private Inventory getInventory(Long id) {
-        return inventoryRepository.findById(id)
+    private Inventory getInventoryForUpdate(Long id) {
+        return inventoryRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. id=" + id));
     }
 
