@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 상품 기획(ProductPlan)의 상태 전이(DRAFT → PENDING_REVIEW → APPROVED/REJECTED)를 캡슐화한 Aggregate Root.
+ * 상품 기획(ProductPlan)의 상태 전이(DRAFT -> PENDING_REVIEW -> APPROVED/REJECTED)를 캡슐화한 Aggregate Root.
  * 외부에서 상태를 직접 바꿀 수 없고, 각 전이 메서드가 현재 상태를 검증한 뒤에만 상태를 변경한다.
  */
 @Entity
