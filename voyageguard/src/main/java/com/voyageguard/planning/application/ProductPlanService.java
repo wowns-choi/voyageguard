@@ -1,7 +1,7 @@
 package com.voyageguard.planning.application;
 
-import com.voyageguard.planning.domain.ProductPlan;
-import com.voyageguard.planning.domain.ProductPlanRepository;
+import com.voyageguard.planning.domain.productplan.ProductPlan;
+import com.voyageguard.planning.domain.productplan.ProductPlanRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

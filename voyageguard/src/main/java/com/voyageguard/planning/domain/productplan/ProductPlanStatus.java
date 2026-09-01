@@ -1,4 +1,4 @@
-package com.voyageguard.planning.domain;
+package com.voyageguard.planning.domain.productplan;
 
 public enum ProductPlanStatus {
     DRAFT, // 기획중 (작성 시작)
