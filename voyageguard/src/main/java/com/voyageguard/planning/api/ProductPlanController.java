@@ -1,5 +1,8 @@
 package com.voyageguard.planning.api;
 
+import com.voyageguard.planning.api.dto.CreateRequest;
+import com.voyageguard.planning.api.dto.RejectRequest;
+import com.voyageguard.planning.api.dto.ReviseRequest;
 import com.voyageguard.planning.application.ProductPlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,14 +41,5 @@ public class ProductPlanController {
     @PostMapping("/{id}/revise")
     public void revise(@PathVariable Long id, @RequestBody ReviseRequest request) {
         productPlanService.revise(id, request.newTitle());
-    }
-
-    public record CreateRequest(String title) {
-    }
-
-    public record RejectRequest(String reason) {
-    }
-
-    public record ReviseRequest(String newTitle) {
     }
 }
