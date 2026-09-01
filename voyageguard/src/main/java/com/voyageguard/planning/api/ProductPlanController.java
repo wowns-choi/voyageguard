@@ -1,8 +1,10 @@
 package com.voyageguard.planning.api;
 
+import com.voyageguard.planning.api.dto.CreateRequest;
+import com.voyageguard.planning.api.dto.RejectRequest;
+import com.voyageguard.planning.api.dto.ReviseRequest;
 import com.voyageguard.planning.application.ProductPlanService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -56,14 +58,5 @@ public class ProductPlanController {
     @PostMapping("/{id}/revise")
     public void revise(@PathVariable Long id, @RequestBody ReviseRequest request) {
         productPlanService.revise(id, request.newTitle());
-    }
-
-    public record CreateRequest(@Schema(description = "기획 제목") String title) {
-    }
-
-    public record RejectRequest(@Schema(description = "반려 사유") String reason) {
-    }
-
-    public record ReviseRequest(@Schema(description = "재수정된 제목") String newTitle) {
     }
 }
