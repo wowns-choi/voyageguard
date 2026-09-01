@@ -41,5 +41,16 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	useJUnitPlatform {
+		excludeTags 'integration'
+	}
+}
+
+tasks.register('integrationTest', Test) {
+	useJUnitPlatform {
+		includeTags 'integration'
+	}
+	classpath = sourceSets.test.runtimeClasspath
+	testClassesDirs = sourceSets.test.output.classesDirs
+	shouldRunAfter test
 }
