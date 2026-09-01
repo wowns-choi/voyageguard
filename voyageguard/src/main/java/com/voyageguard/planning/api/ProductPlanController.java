@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "ProductPlan", description = "상품 기획 상태 전이 API (DRAFT → PENDING_REVIEW → APPROVED/REJECTED)")
+@Tag(name = "ProductPlan", description = "상품 기획 상태 전이 API (DRAFT -> PENDING_REVIEW -> APPROVED/REJECTED)")
 @RestController
 @RequestMapping("/api/v1/product-plans")
 @RequiredArgsConstructor
