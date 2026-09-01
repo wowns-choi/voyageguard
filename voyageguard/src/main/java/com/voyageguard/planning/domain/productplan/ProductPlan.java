@@ -1,4 +1,4 @@
-package com.voyageguard.planning.domain;
+package com.voyageguard.planning.domain.productplan;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
