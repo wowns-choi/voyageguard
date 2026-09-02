@@ -2,6 +2,7 @@ package com.voyageguard.sales.application;
 
 
 import com.voyageguard.sales.domain.inventory.Inventory;
+import com.voyageguard.sales.domain.inventory.InsufficientInventoryException;
 import com.voyageguard.sales.domain.inventory.InventoryRepository;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,7 @@ class InventoryConcurrencyTest {
                 try {
                     inventoryService.decrease(inventory.getId(), 1);
                     successCount.incrementAndGet();
-                } catch (IllegalStateException e) {
+                } catch (InsufficientInventoryException e) {
                     // 재고 부족 - 정상적으로 막힌 경우이므로 무시
                 } finally {
                     latch.countDown();

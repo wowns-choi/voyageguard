@@ -39,7 +39,7 @@ public class Inventory {
 
     public void decrease(int quantity) {
         if (remainingCount < quantity) {
-            throw new IllegalStateException("잔여 재고가 부족합니다. 잔여: " + remainingCount + ", 요청: " +
+            throw new InsufficientInventoryException("잔여 재고가 부족합니다. 잔여: " + remainingCount + ", 요청: " +
                     quantity);
         }
         this.remainingCount -= quantity;
