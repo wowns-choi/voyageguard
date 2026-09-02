@@ -8,3 +8,6 @@
 # Claude
 CLAUDE.md
 voyageguard-context.md
+
+# 로컬 개발용 임시 테스트 페이지 (postman/과 같은 이유로 레포에 안 올림)
+voyageguard/src/main/resources/static/*-test.html
