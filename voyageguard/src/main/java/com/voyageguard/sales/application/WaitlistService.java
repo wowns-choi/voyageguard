@@ -7,6 +7,7 @@ import com.voyageguard.sales.domain.waitlist.Waitlist;
 import com.voyageguard.sales.domain.waitlist.WaitlistRepository;
 import com.voyageguard.sales.infrastructure.redis.WaitlistRankRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +28,13 @@ public class WaitlistService {
 
         Waitlist waitlist = Waitlist.create(departureId, headcount, travelerName);
         Long id = waitlistRepository.save(waitlist).getId();
-        waitlistRankRepository.add(departureId, id);
+        try {
+            waitlistRankRepository.add(departureId, id);
+        } catch (DataAccessException e) {
+            waitlistRepository.deleteById(id);
+            throw e;
+        }
+
         return id;
     }
 
