@@ -1,6 +1,7 @@
 package com.voyageguard.common.api;
 
 import com.voyageguard.common.exception.BusinessException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,5 +25,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ProblemDetail handleDataAccess(DataAccessException e) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "일시적인 서버 오류입니다. 잠시 후 다시 시도해주세요."
+        );
     }
 }
