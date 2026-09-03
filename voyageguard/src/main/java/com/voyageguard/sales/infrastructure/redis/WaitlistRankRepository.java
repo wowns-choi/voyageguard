@@ -1,5 +1,6 @@
 package com.voyageguard.sales.infrastructure.redis;
 
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
@@ -41,6 +42,32 @@ public class WaitlistRankRepository {
                 waitlistId.toString()
         );
         return zeroBasedRank == null ? null : zeroBasedRank + 1;
+    }
+
+    /**
+     * 대기열 1등(가장 먼저 등록한 사람)의 waitlistId. 대기자가 없으면 null.
+     */
+    public Long firstInLine(Long departureId) {
+        Set<String> firstMember = redisTemplate.opsForZSet().range(
+                key(departureId), 0, 0
+        );
+        if (firstMember == null || firstMember.isEmpty()) {
+            return null;
+        }
+        return Long.valueOf(firstMember.iterator().next());
+    }
+
+    /** 특정 회차의 특정 대기자를 대기열에서 제거 (제거 후 뒷사람 순번은 자동으로 당겨짐) */
+    public void remove(Long departureId, Long waitlistId) {
+        redisTemplate.opsForZSet().remove(key(departureId), waitlistId.toString());
+    }
+
+    /**
+     * 이 회차에 대기 중인 사람이 한 명이라도 있는지 조회
+     */
+    public boolean hasWaiting(Long departureId) {
+        Long size = redisTemplate.opsForZSet().size(key(departureId));
+        return size != null && size > 0;
     }
 
 }

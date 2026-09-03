@@ -3,11 +3,17 @@ package com.voyageguard.sales.application;
 import com.voyageguard.planning.domain.departure.Departure;
 import com.voyageguard.planning.domain.departure.DepartureRepository;
 import com.voyageguard.planning.domain.departure.DepartureStatus;
+import com.voyageguard.sales.domain.inventory.Inventory;
+import com.voyageguard.sales.domain.inventory.InventoryRepository;
 import com.voyageguard.sales.domain.waitlist.Waitlist;
 import com.voyageguard.sales.domain.waitlist.WaitlistRepository;
+import com.voyageguard.sales.domain.waitlist.WaitlistStatus;
 import com.voyageguard.sales.infrastructure.redis.WaitlistRankRepository;
+import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +24,7 @@ public class WaitlistService {
     private final WaitlistRepository waitlistRepository;
     private final DepartureRepository departureRepository;
     private final WaitlistRankRepository waitlistRankRepository;
+    private final InventoryRepository inventoryRepository;
 
     public Long join(Long departureId, Integer headcount, String travelerName) {
         Departure departure = departureRepository.findById(departureId)
@@ -26,7 +33,14 @@ public class WaitlistService {
             throw new IllegalStateException("모집중 상태의 회차만 대기 등록할 수 있습니다. 현재 상태: " + departure.getStatus());
         }
 
-        Waitlist waitlist = Waitlist.create(departureId, headcount, travelerName);
+        // 정원보다 많은 인원으로 등록하면 절대 승격될 수 없어(전원 취소해도 못 채움),
+        // 뒷사람을 영원히 막는 대기자가 생김
+        if (headcount > departure.getCapacity()) {
+            throw new IllegalStateException(
+                    "정원(" + departure.getCapacity() + "명)보다 많은 인원으로는 대기 등록할 수 없습니다. 요청 인원: " + headcount);
+        }
+
+        Waitlist waitlist = Waitlist.create(departureId, headcount, travelerName, departure.getSaleEndDate());
         Long id = waitlistRepository.save(waitlist).getId();
         try {
             waitlistRankRepository.add(departureId, id);
@@ -43,5 +57,79 @@ public class WaitlistService {
         Waitlist waitlist = waitlistRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대기열입니다. id=" + id));
         return waitlistRankRepository.rank(waitlist.getDepartureId(), id);
+    }
+
+    /**
+     * 예약 취소 -> 재고+1 -> 대기열 승격(WAITING -> PROMOTED) -> 재고-1
+     * 과정에서, 대기열 승격과 재고-1 부분을 처리합니다.
+     *
+     * 1. 대기열 승격 정책 : 엄격한 순서, 새치기 없음.
+     *      - 남은 자리는 이벤트의 인원수가 아니라 "Inventory 의 실제 잔여 재고"를 기준으로 판단.
+     *        이벤트 하나의 인원수만 보면, 여러 번 나눠 취소되며 누적된 자리를 놓쳐서 영원히
+     *        승격이 안 되는 버그가 생김.
+     * 2. 재고는 즉시 차감하고, 남은 재고로 다음 사람도 들어갈 수 있으면 루프를 돌며 연달아 승격시킵니다.
+     */
+    public void promoteNext(Long departureId) {
+        // Inventory 조회
+        Inventory inventory = inventoryRepository.findByDepartureIdForUpdate(departureId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. departureId=" + departureId));
+
+        while (true) {
+            // REDIS 에서, 1등 순번의 대기열 id 조회
+            Long firstWaitlistId = waitlistRankRepository.firstInLine(departureId);
+            if (firstWaitlistId == null) {
+                return;
+            }
+
+            // DB 에서, 1등 순번의 대기열 조회
+            Waitlist waitlist = waitlistRepository.findById(firstWaitlistId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대기열입니다. id=" + firstWaitlistId));
+
+            // 1등 순번이 원하는 자리수 > 예약취소로 인해 생긴 빈 자리
+            if (waitlist.getHeadcount() > inventory.getRemainingCount()) {
+                return;
+            }
+
+            // DB 에 재고 차감, 대기열 승격
+            inventory.decrease(waitlist.getHeadcount());
+            waitlist.promote();
+
+            // Redis 에서 1등 순번 삭제
+            waitlistRankRepository.remove(departureId, firstWaitlistId);
+        }
+    }
+
+    /**
+     * WAITING(자리가 안 나서 계속 대기중)과 PROMOTED(승격됐는데 결제를 안 함) 둘 다 만료 대상.
+     * 만료 시점은 Waitlist.expiresAt에 상태별로 미리 계산되어 저장돼있으므로,
+     * 여기선 그 값이 지난 후보만 인덱스로 걸러서 가져온다.
+     */
+    @Scheduled(fixedDelay = 600000) // 10분마다
+    public void expireStaleWaitlists() {
+        // 만료대상 대기열 전부 조회
+        List<Waitlist> targets = waitlistRepository.findByStatusInAndExpiresAtBefore(
+                List.of(WaitlistStatus.WAITING, WaitlistStatus.PROMOTED), LocalDateTime.now());
+
+        for (Waitlist waitlist : targets) {
+            // 만료시키기
+            waitlist.expire();
+
+            // PROMOTED였다면(승격 후 결제 안 함), WAITING이었다면(대기 시간 초과)
+            boolean wasPromoted = waitlist.getStatus() == WaitlistStatus.PROMOTED;
+            Long departureId = waitlist.getDepartureId();
+
+            if (wasPromoted) {
+                // 승격 시점에 이미 Redis에서 빠졌으니, 선점해둔 재고만 반납
+                Inventory inventory = inventoryRepository.findByDepartureIdForUpdate(departureId)
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. departureId=" + departureId));
+                inventory.increase(waitlist.getHeadcount());
+            } else {
+                // 아직 Redis 대기열에 남아있으니 직접 제거
+                waitlistRankRepository.remove(departureId, waitlist.getId());
+            }
+
+            // 재고가 늘었든(PROMOTED 만료), 막고 있던 1등이 빠졌든(WAITING 만료) - 다음 대기자 재평가
+            promoteNext(departureId);
+        }
     }
 }
