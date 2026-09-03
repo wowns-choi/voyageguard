@@ -1,5 +1,6 @@
 package com.voyageguard.sales.domain.waitlist;
 
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,7 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class WaitlistTest {
 
     private Waitlist createWaitlist() {
-        return Waitlist.create(1L, 2, "홍길동");
+        return createWaitlist(LocalDate.now().plusMonths(2));
+    }
+
+    private Waitlist createWaitlist(LocalDate saleEndDate) {
+        return Waitlist.create(1L, 2, "홍길동", saleEndDate);
     }
 
     @Test
@@ -47,10 +52,54 @@ class WaitlistTest {
     }
 
     @Test
-    void WAITING이_아닌_상태에서_expire_하면_예외가_발생한다() {
+    void PROMOTED_상태에서_expire_하면_EXPIRED로_전이된다() {
+        Waitlist waitlist = createWaitlist();
+        waitlist.promote();
+
+        waitlist.expire();
+
+        assertEquals(WaitlistStatus.EXPIRED, waitlist.getStatus());
+    }
+
+    @Test
+    void WAITING도_PROMOTED도_아닌_상태에서_expire_하면_예외가_발생한다() {
         Waitlist waitlist = createWaitlist();
         waitlist.expire();
 
         assertThrows(IllegalStateException.class, waitlist::expire);
+    }
+
+    @Test
+    void create_시_expiresAt은_등록_시점_3일_후다() {
+        Waitlist waitlist = createWaitlist();
+
+        assertEquals(waitlist.getCreatedAt().plusDays(3), waitlist.getExpiresAt());
+    }
+
+    @Test
+    void create_시_판매종료일이_3일보다_가까우면_expiresAt은_판매종료일이다() {
+        LocalDate saleEndDate = LocalDate.now();
+        Waitlist waitlist = createWaitlist(saleEndDate);
+
+        assertEquals(saleEndDate.atStartOfDay(), waitlist.getExpiresAt());
+    }
+
+    @Test
+    void promote_시_expiresAt이_승격_시점_24시간_후로_재계산된다() {
+        Waitlist waitlist = createWaitlist();
+
+        waitlist.promote();
+
+        assertEquals(waitlist.getPromotedAt().plusHours(24), waitlist.getExpiresAt());
+    }
+
+    @Test
+    void promote_시_판매종료일이_24시간보다_가까우면_expiresAt은_판매종료일이다() {
+        LocalDate saleEndDate = LocalDate.now();
+        Waitlist waitlist = createWaitlist(saleEndDate);
+
+        waitlist.promote();
+
+        assertEquals(saleEndDate.atStartOfDay(), waitlist.getExpiresAt());
     }
 }
