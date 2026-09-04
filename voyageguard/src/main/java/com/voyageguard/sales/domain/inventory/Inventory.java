@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,6 +27,11 @@ public class Inventory {
     private Integer totalCapacity;
 
     private Integer remainingCount;
+
+    // 낙관적 락 전략에서만 쓰임(비관적 락/Redis 전략은 이 필드 안 봄).
+    // Hibernate가 UPDATE 시 자동으로 WHERE version=? 를 붙이고, 0건 반영되면 ObjectOptimisticLockingFailureException을 자동으로 던짐.
+    @Version
+    private Long version;
 
     private Inventory(Long departureId, Integer totalCapacity) {
         this.departureId = departureId;

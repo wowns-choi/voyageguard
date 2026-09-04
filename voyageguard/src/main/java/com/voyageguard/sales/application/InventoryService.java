@@ -1,9 +1,8 @@
 package com.voyageguard.sales.application;
 
-import com.voyageguard.planning.domain.departure.Departure;
-import com.voyageguard.planning.domain.departure.DepartureRepository;
 import com.voyageguard.sales.domain.inventory.Inventory;
 import com.voyageguard.sales.domain.inventory.InventoryRepository;
+import com.voyageguard.sales.infrastructure.redis.InventoryCountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,29 +12,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class InventoryService {
     private final InventoryRepository inventoryRepository;
-    private final DepartureRepository departureRepository;
+    private final InventoryCountRepository inventoryCountRepository;
 
-    public Long create(Long departureId) {
-        Departure departure = departureRepository.findById(departureId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. id=" + departureId));
+    // capacity를 파라미터로 받는 이유: 여기서 DepartureRepository를 직접 조회하면 Planning-Sales 순환 의존이 생김.
+    public Long create(Long departureId, Integer capacity) {
+        Inventory inventory = Inventory.create(departureId, capacity);
+        Long id = inventoryRepository.save(inventory).getId();
 
-        Inventory inventory = Inventory.create(departureId, departure.getCapacity());
-        return inventoryRepository.save(inventory).getId();
-    }
+        // Redis DECR 전략이 나중에 활성화되더라도 바로 쓸 수 있도록, 현재 활성 전략과 무관하게 항상 초기화해둔다.
+        inventoryCountRepository.initialize(departureId, capacity);
 
-    public void decrease(Long id, int quantity) {
-        Inventory inventory = getInventoryForUpdate(id);
-        inventory.decrease(quantity);
-    }
-
-    public void increase(Long id, int quantity) {
-        Inventory inventory = getInventoryForUpdate(id);
-        inventory.increase(quantity);
-    }
-
-    private Inventory getInventoryForUpdate(Long id) {
-        return inventoryRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. id=" + id));
+        return id;
     }
 
 }

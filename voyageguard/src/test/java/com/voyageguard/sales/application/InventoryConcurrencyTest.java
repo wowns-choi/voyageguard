@@ -1,6 +1,7 @@
 package com.voyageguard.sales.application;
 
 
+import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import com.voyageguard.sales.domain.inventory.Inventory;
 import com.voyageguard.sales.domain.inventory.InsufficientInventoryException;
 import com.voyageguard.sales.domain.inventory.InventoryRepository;
@@ -22,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InventoryConcurrencyTest {
 
     @Autowired
-    private InventoryService inventoryService;
+    private InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
 
     @Autowired
     private InventoryRepository inventoryRepository;
@@ -50,7 +51,7 @@ class InventoryConcurrencyTest {
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    inventoryService.decrease(inventory.getId(), 1);
+                    inventoryConcurrencyStrategy.decrease(inventory.getDepartureId(), 1);
                     successCount.incrementAndGet();
                 } catch (InsufficientInventoryException e) {
                     // 재고 부족 - 정상적으로 막힌 경우이므로 무시

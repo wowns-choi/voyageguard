@@ -3,8 +3,7 @@ package com.voyageguard.sales.application;
 import com.voyageguard.planning.domain.departure.Departure;
 import com.voyageguard.planning.domain.departure.DepartureRepository;
 import com.voyageguard.planning.domain.departure.DepartureStatus;
-import com.voyageguard.sales.domain.inventory.Inventory;
-import com.voyageguard.sales.domain.inventory.InventoryRepository;
+import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import com.voyageguard.sales.domain.waitlist.Waitlist;
 import com.voyageguard.sales.domain.waitlist.WaitlistRepository;
 import com.voyageguard.sales.domain.waitlist.WaitlistStatus;
@@ -24,7 +23,7 @@ public class WaitlistService {
     private final WaitlistRepository waitlistRepository;
     private final DepartureRepository departureRepository;
     private final WaitlistRankRepository waitlistRankRepository;
-    private final InventoryRepository inventoryRepository;
+    private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
 
     public Long join(Long departureId, Integer headcount, String travelerName) {
         Departure departure = departureRepository.findById(departureId)
@@ -70,10 +69,6 @@ public class WaitlistService {
      * 2. 재고는 즉시 차감하고, 남은 재고로 다음 사람도 들어갈 수 있으면 루프를 돌며 연달아 승격시킵니다.
      */
     public void promoteNext(Long departureId) {
-        // Inventory 조회
-        Inventory inventory = inventoryRepository.findByDepartureIdForUpdate(departureId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. departureId=" + departureId));
-
         while (true) {
             // REDIS 에서, 1등 순번의 대기열 id 조회
             Long firstWaitlistId = waitlistRankRepository.firstInLine(departureId);
@@ -86,12 +81,12 @@ public class WaitlistService {
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대기열입니다. id=" + firstWaitlistId));
 
             // 1등 순번이 원하는 자리수 > 예약취소로 인해 생긴 빈 자리
-            if (waitlist.getHeadcount() > inventory.getRemainingCount()) {
+            if (waitlist.getHeadcount() > inventoryConcurrencyStrategy.getRemainingCount(departureId)) {
                 return;
             }
 
-            // DB 에 재고 차감, 대기열 승격
-            inventory.decrease(waitlist.getHeadcount());
+            // 재고 차감, 대기열 승격
+            inventoryConcurrencyStrategy.decrease(departureId, waitlist.getHeadcount());
             waitlist.promote();
 
             // Redis 에서 1등 순번 삭제
@@ -120,9 +115,7 @@ public class WaitlistService {
 
             if (wasPromoted) {
                 // 승격 시점에 이미 Redis에서 빠졌으니, 선점해둔 재고만 반납
-                Inventory inventory = inventoryRepository.findByDepartureIdForUpdate(departureId)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. departureId=" + departureId));
-                inventory.increase(waitlist.getHeadcount());
+                inventoryConcurrencyStrategy.increase(departureId, waitlist.getHeadcount());
             } else {
                 // 아직 Redis 대기열에 남아있으니 직접 제거
                 waitlistRankRepository.remove(departureId, waitlist.getId());
