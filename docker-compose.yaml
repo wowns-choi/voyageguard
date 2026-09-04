@@ -8,6 +8,8 @@ services:
       - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+    # 기본 151로는 Hikari 풀(100) + 낙관적 락 REQUIRES_NEW 여분을 감당 못해서 부하테스트를 위해 늘림
+    command: --max_connections=200
 
   redis:
     image: redis:7

@@ -5,8 +5,7 @@ import com.voyageguard.common.outbox.OutboxEventRepository;
 import com.voyageguard.planning.domain.departure.Departure;
 import com.voyageguard.planning.domain.departure.DepartureRepository;
 import com.voyageguard.planning.domain.departure.DepartureStatus;
-import com.voyageguard.sales.domain.inventory.Inventory;
-import com.voyageguard.sales.domain.inventory.InventoryRepository;
+import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import com.voyageguard.sales.domain.reservation.Reservation;
 import com.voyageguard.sales.domain.reservation.ReservationCancelledEvent;
 import com.voyageguard.sales.domain.reservation.ReservationRepository;
@@ -27,7 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final DepartureRepository departureRepository;
-    private final InventoryRepository inventoryRepository;
+    private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final WaitlistRankRepository waitlistRankRepository;
@@ -43,9 +42,7 @@ public class ReservationService {
             throw new IllegalStateException("대기 중인 인원이 있어 새 예약을 받을 수 없습니다. 대기 등록을 이용해주세요.");
         }
 
-        Inventory inventory = inventoryRepository.findByDepartureIdForUpdate(departureId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. departureId=" + departureId));
-        inventory.decrease(headcount);
+        inventoryConcurrencyStrategy.decrease(departureId, headcount);
 
         Reservation reservation = Reservation.create(departureId, headcount, travelerName, departure.getSaleEndDate());
         return reservationRepository.save(reservation).getId();
@@ -81,9 +78,7 @@ public class ReservationService {
     private void releaseInventoryAndNotify(Reservation reservation, String eventType) {
 
         // 재고 반납
-        Inventory inventory = inventoryRepository.findByDepartureIdForUpdate(reservation.getDepartureId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다. departureId=" + reservation.getDepartureId()));
-        inventory.increase(reservation.getHeadcount());
+        inventoryConcurrencyStrategy.increase(reservation.getDepartureId(), reservation.getHeadcount());
 
         // Kafka로 바로 안 보내고, 같은 트랜잭션 안에서 outbox 테이블에 "보낼 것"만 원자적으로 기록
         ReservationCancelledEvent event = new ReservationCancelledEvent(reservation.getDepartureId(), reservation.getHeadcount());
