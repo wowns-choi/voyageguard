@@ -1,8 +1,7 @@
 package com.voyageguard.sales.application;
 
-import com.voyageguard.planning.domain.departure.Departure;
-import com.voyageguard.planning.domain.departure.DepartureRepository;
-import com.voyageguard.planning.domain.departure.DepartureStatus;
+import com.voyageguard.sales.application.departure.DepartureClient;
+import com.voyageguard.sales.application.departure.DepartureView;
 import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import com.voyageguard.sales.domain.waitlist.Waitlist;
 import com.voyageguard.sales.domain.waitlist.WaitlistRepository;
@@ -21,25 +20,25 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class WaitlistService {
     private final WaitlistRepository waitlistRepository;
-    private final DepartureRepository departureRepository;
+    private final DepartureClient departureClient;
     private final WaitlistRankRepository waitlistRankRepository;
     private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
 
+    // MSA 대비 1단계: Planning의 Departure를 DB로 직접 안 읽고 DepartureClient(동기 REST)로 조회
     public Long join(Long departureId, Integer headcount, String travelerName) {
-        Departure departure = departureRepository.findById(departureId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. id=" + departureId));
-        if (departure.getStatus() != DepartureStatus.OPEN) {
-            throw new IllegalStateException("모집중 상태의 회차만 대기 등록할 수 있습니다. 현재 상태: " + departure.getStatus());
+        DepartureView departure = departureClient.get(departureId);
+        if (departure.status() != DepartureView.Status.OPEN) {
+            throw new IllegalStateException("모집중 상태의 회차만 대기 등록할 수 있습니다. 현재 상태: " + departure.status());
         }
 
         // 정원보다 많은 인원으로 등록하면 절대 승격될 수 없어(전원 취소해도 못 채움),
         // 뒷사람을 영원히 막는 대기자가 생김
-        if (headcount > departure.getCapacity()) {
+        if (headcount > departure.capacity()) {
             throw new IllegalStateException(
-                    "정원(" + departure.getCapacity() + "명)보다 많은 인원으로는 대기 등록할 수 없습니다. 요청 인원: " + headcount);
+                    "정원(" + departure.capacity() + "명)보다 많은 인원으로는 대기 등록할 수 없습니다. 요청 인원: " + headcount);
         }
 
-        Waitlist waitlist = Waitlist.create(departureId, headcount, travelerName, departure.getSaleEndDate());
+        Waitlist waitlist = Waitlist.create(departureId, headcount, travelerName, departure.saleEndDate());
         Long id = waitlistRepository.save(waitlist).getId();
         try {
             waitlistRankRepository.add(departureId, id);

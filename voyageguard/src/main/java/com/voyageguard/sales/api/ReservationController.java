@@ -1,11 +1,13 @@
 package com.voyageguard.sales.api;
 
 import com.voyageguard.sales.api.dto.ReservationCreateRequest;
+import com.voyageguard.sales.api.dto.ReservationResponse;
 import com.voyageguard.sales.application.ReservationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +28,13 @@ public class ReservationController {
     @PostMapping
     public Long request(@RequestBody ReservationCreateRequest request) {
         return reservationService.request(request.departureId(), request.headcount(), request.travelerName());
+    }
+
+    @Operation(summary = "예약 상세", description = "예약 하나를 조회한다.")
+    @ApiResponse(responseCode = "404", description = "존재하지 않는 예약")
+    @GetMapping("/{id}")
+    public ReservationResponse get(@PathVariable Long id) {
+        return reservationService.get(id);
     }
 
     @Operation(summary = "예약 취소", description = "예약요청 또는 확정 상태의 예약을 취소하고 재고를 복구한다.")

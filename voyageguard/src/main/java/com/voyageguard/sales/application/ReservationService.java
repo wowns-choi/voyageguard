@@ -2,9 +2,9 @@ package com.voyageguard.sales.application;
 
 import com.voyageguard.common.outbox.OutboxEvent;
 import com.voyageguard.common.outbox.OutboxEventRepository;
-import com.voyageguard.planning.domain.departure.Departure;
-import com.voyageguard.planning.domain.departure.DepartureRepository;
-import com.voyageguard.planning.domain.departure.DepartureStatus;
+import com.voyageguard.sales.api.dto.ReservationResponse;
+import com.voyageguard.sales.application.departure.DepartureClient;
+import com.voyageguard.sales.application.departure.DepartureView;
 import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import com.voyageguard.sales.domain.reservation.Reservation;
 import com.voyageguard.sales.domain.reservation.ReservationCancelledEvent;
@@ -25,17 +25,17 @@ import tools.jackson.databind.ObjectMapper;
 @Transactional
 public class ReservationService {
     private final ReservationRepository reservationRepository;
-    private final DepartureRepository departureRepository;
+    private final DepartureClient departureClient;
     private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final WaitlistRankRepository waitlistRankRepository;
 
+    // MSA 대비 1단계: Planning의 Departure를 DB로 직접 안 읽고 DepartureClient(동기 REST)로 조회
     public Long request(Long departureId, Integer headcount, String travelerName) {
-        Departure departure = departureRepository.findById(departureId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. id=" + departureId));
-        if (departure.getStatus() != DepartureStatus.OPEN) {
-            throw new IllegalStateException("모집중 상태의 회차만 예약할 수 있습니다. 현재 상태: " + departure.getStatus());
+        DepartureView departure = departureClient.get(departureId);
+        if (departure.status() != DepartureView.Status.OPEN) {
+            throw new IllegalStateException("모집중 상태의 회차만 예약할 수 있습니다. 현재 상태: " + departure.status());
         }
         // 대기열이 있으면 새치기 방지 - 신규 예약을 막고 대기 등록으로 유도
         if (waitlistRankRepository.hasWaiting(departureId)) {
@@ -44,7 +44,7 @@ public class ReservationService {
 
         inventoryConcurrencyStrategy.decrease(departureId, headcount);
 
-        Reservation reservation = Reservation.create(departureId, headcount, travelerName, departure.getSaleEndDate());
+        Reservation reservation = Reservation.create(departureId, headcount, travelerName, departure.saleEndDate());
         return reservationRepository.save(reservation).getId();
     }
 
@@ -52,6 +52,20 @@ public class ReservationService {
         Reservation reservation = getReservation(id);
         reservation.cancel();
         releaseInventoryAndNotify(reservation, "ReservationCancelled");
+    }
+
+    // MSA 대비 1단계: Payment가 예약 상태를 직접 DB로 안 읽고 이 API(동기 REST)로 조회하게 함
+    @Transactional(readOnly = true)
+    public ReservationResponse get(Long id) {
+        Reservation reservation = getReservation(id);
+        return new ReservationResponse(
+                reservation.getId(),
+                reservation.getDepartureId(),
+                reservation.getHeadcount(),
+                reservation.getTravelerName(),
+                reservation.getStatus(),
+                reservation.getExpiresAt()
+        );
     }
 
     /**
