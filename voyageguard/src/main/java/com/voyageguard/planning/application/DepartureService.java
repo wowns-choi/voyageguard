@@ -1,12 +1,16 @@
 package com.voyageguard.planning.application;
 
+import com.voyageguard.planning.api.dto.DepartureResponse;
 import com.voyageguard.planning.domain.departure.Departure;
 import com.voyageguard.planning.domain.departure.DepartureRepository;
+import com.voyageguard.planning.domain.departure.DepartureStatus;
 import com.voyageguard.planning.domain.product.Product;
 import com.voyageguard.planning.domain.product.ProductRepository;
 import com.voyageguard.planning.domain.product.ProductStatus;
 import com.voyageguard.sales.application.InventoryService;
+import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +22,7 @@ public class DepartureService {
     private final DepartureRepository departureRepository;
     private final ProductRepository productRepository;
     private final InventoryService inventoryService;
+    private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
 
     /**
      * Departure는 정의상 "실제 예약 가능한 단위"라 Inventory 없이 존재하면 안 되므로, 같은
@@ -42,6 +47,41 @@ public class DepartureService {
         inventoryService.create(departureId, capacity);
 
         return departureId;
+    }
+
+    // readOnly=true로 못 둠 - 비관적 락 전략의 getRemainingCount()가 SELECT FOR UPDATE를 쓰는데,
+    // MySQL은 읽기전용 트랜잭션(JDBC read-only 커넥션)에서 락 거는 조회를 거부한다.
+    public List<DepartureResponse> listOpen() {
+        return departureRepository.findByStatus(DepartureStatus.OPEN).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public DepartureResponse get(Long id) {
+        return toResponse(getDeparture(id));
+    }
+
+    // 조회 전용 - Departure(Planning) + Product(Planning) + 잔여재고(Sales)를 합쳐서 보여주는 화면용 조합.
+    // CLAUDE.md 원칙상 조회 쿼리에서 여러 Aggregate를 합치는 건 허용됨(리포트/대시보드 성격).
+    private DepartureResponse toResponse(Departure departure) {
+        Product product = productRepository.findById(departure.getProductId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다. id=" + departure.getProductId()));
+        int remainingCount = inventoryConcurrencyStrategy.getRemainingCount(departure.getId());
+
+        return new DepartureResponse(
+                departure.getId(),
+                departure.getProductId(),
+                product.getTitle(),
+                departure.getDepartureDate(),
+                departure.getMinParticipants(),
+                departure.getCapacity(),
+                remainingCount,
+                departure.getItinerary(),
+                departure.getSaleStartDate(),
+                departure.getSaleEndDate(),
+                departure.getSalePrice(),
+                departure.getStatus()
+        );
     }
 
     public void close(Long id) {
