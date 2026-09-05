@@ -5,6 +5,8 @@ import com.voyageguard.payment.application.pg.PgApiException;
 import com.voyageguard.payment.application.pg.PgCancelResult;
 import com.voyageguard.payment.application.pg.PgClient;
 import com.voyageguard.payment.application.pg.PgConfirmResult;
+import com.voyageguard.payment.application.reservation.ReservationClient;
+import com.voyageguard.payment.application.reservation.ReservationView;
 import com.voyageguard.payment.domain.payment.Payment;
 import com.voyageguard.payment.domain.payment.PaymentRepository;
 import com.voyageguard.payment.domain.payment.PaymentStatus;
@@ -24,13 +26,14 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final ReservationRepository reservationRepository;
+    private final ReservationClient reservationClient;
     private final PgClient pgClient;
 
+    // MSA 대비 1단계: 예약 상태 검증을 DB 직접 조회 대신 ReservationClient(동기 REST)로 함
     public PaymentRequestResponse request(Long reservationId, PaymentType paymentType, Integer amount) {
-        Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약입니다. id=" + reservationId));
-        if (reservation.getStatus() != ReservationStatus.REQUESTED) {
-            throw new IllegalStateException("예약요청 상태에서만 결제를 요청할 수 있습니다. 현재 상태: " + reservation.getStatus());
+        ReservationView reservation = reservationClient.get(reservationId);
+        if (reservation.status() != ReservationView.Status.REQUESTED) {
+            throw new IllegalStateException("예약요청 상태에서만 결제를 요청할 수 있습니다. 현재 상태: " + reservation.status());
         }
 
         String orderId = generateOrderId(reservationId, paymentType);
