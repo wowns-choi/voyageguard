@@ -8,4 +8,6 @@ package com.voyageguard.planning.application.inventory;
 public interface InventoryClient {
 
     int getRemainingCount(Long departureId);
+
+    void create(Long departureId, Integer capacity);
 }
