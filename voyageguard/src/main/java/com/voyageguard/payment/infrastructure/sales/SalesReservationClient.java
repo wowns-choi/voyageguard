@@ -33,7 +33,12 @@ public class SalesReservationClient implements ReservationClient {
                     .uri("/api/v1/reservations/{id}", reservationId)
                     .retrieve()
                     .body(ReservationResponse.class);
-            return new ReservationView(response.id(), ReservationView.Status.valueOf(response.status()));
+            return new ReservationView(
+                    response.id(),
+                    ReservationView.Status.valueOf(response.status()),
+                    response.depositAmount(),
+                    response.balanceAmount()
+            );
         } catch (HttpClientErrorException.NotFound e) {
             throw new IllegalArgumentException("존재하지 않는 예약입니다. id=" + reservationId);
         }
@@ -41,6 +46,6 @@ public class SalesReservationClient implements ReservationClient {
 
     // Sales의 ReservationResponse 중 Payment가 필요한 필드만 매핑
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ReservationResponse(Long id, String status) {
+    private record ReservationResponse(Long id, String status, Integer depositAmount, Integer balanceAmount) {
     }
 }

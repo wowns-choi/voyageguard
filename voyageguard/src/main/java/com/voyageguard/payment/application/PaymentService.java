@@ -29,11 +29,31 @@ public class PaymentService {
     private final ReservationClient reservationClient;
     private final PgClient pgClient;
 
-    // MSA 대비 1단계: 예약 상태 검증을 DB 직접 조회 대신 ReservationClient(동기 REST)로 함
+    // 예약 상태 검증을 동기 REST 호출함.
     public PaymentRequestResponse request(Long reservationId, PaymentType paymentType, Integer amount) {
         ReservationView reservation = reservationClient.get(reservationId);
-        if (reservation.status() != ReservationView.Status.REQUESTED) {
-            throw new IllegalStateException("예약요청 상태에서만 결제를 요청할 수 있습니다. 현재 상태: " + reservation.status());
+        if (reservation.status() != ReservationView.Status.REQUESTED && reservation.status() != ReservationView.Status.CONFIRMED) {
+            throw new IllegalStateException("예약요청 또는 확정 상태에서만 결제를 요청할 수 있습니다. 현재 상태: " + reservation.status());
+        }
+        // CONFIRMED 예약도 결제 요청을 허용하는 이유:
+        // 예약금 결제 성공 시 confirmSuccess()가 예약을 곧바로 CONFIRMED로 확정하는데,
+        // 그 뒤에 이어지는 잔금(BALANCE) 결제 요청까지 막히면 안 되기 때문.
+        // 대신 같은 paymentType으로 이미 승인된 결제가 있으면 막아서,
+        // 예약금/잔금 중복 요청·전액결제 재요청 같은 중복 결제를 방지한다.
+        if (paymentRepository.existsByReservationIdAndPaymentTypeAndStatus(reservationId, paymentType, PaymentStatus.APPROVED)) {
+            throw new IllegalStateException("이미 승인된 " + paymentType + " 결제가 존재합니다. reservationId=" + reservationId);
+        }
+
+        // amount는 클라이언트가 넘기는 값이라 그대로 믿지 않고,
+        // Reservation에 스냅샷된 예약금/잔금과 정확히 일치하는지 검증한다
+        Integer expectedAmount = switch (paymentType) {
+            case DEPOSIT -> reservation.depositAmount();
+            case BALANCE -> reservation.balanceAmount();
+            case FULL -> reservation.depositAmount() + reservation.balanceAmount();
+        };
+        if (!amount.equals(expectedAmount)) {
+            throw new IllegalStateException(
+                    "요청 금액이 맞지 않습니다. " + paymentType + " 기대 금액: " + expectedAmount + ", 요청 금액: " + amount);
         }
 
         String orderId = generateOrderId(reservationId, paymentType);

@@ -13,7 +13,7 @@ class ReservationTest {
     }
 
     private Reservation createReservation(LocalDate saleEndDate) {
-        return Reservation.create(1L, 2, "홍길동", saleEndDate);
+        return Reservation.create(1L, 2, "홍길동", saleEndDate, 100_000);
     }
 
     @Test
@@ -23,6 +23,24 @@ class ReservationTest {
         assertEquals(1L, reservation.getDepartureId());
         assertEquals(2, reservation.getHeadcount());
         assertEquals(ReservationStatus.REQUESTED, reservation.getStatus());
+    }
+
+    @Test
+    void create_시_예약금은_총액의_10퍼센트다() {
+        Reservation reservation = createReservation();
+
+        assertEquals(20_000, reservation.getDepositAmount()); // 100_000 * 2 * 0.1
+    }
+
+    @Test
+    void create_시_잔금은_총액에서_예약금을_뺀_금액이다() {
+        Reservation reservation = Reservation.create(1L, 3, "홍길동", LocalDate.now().plusMonths(2), 100_001);
+
+        // totalAmount(300_003) * 0.1 = 30_000.3 -> depositAmount는 30_000으로 버려짐
+        assertEquals(30_000, reservation.getDepositAmount());
+        // balanceAmount를 비율로 다시 계산하지 않고 나머지로 구해서, 버림으로 생기는 오차 없이 합이 totalAmount와 정확히 일치한다
+        assertEquals(270_003, reservation.getBalanceAmount());
+        assertEquals(300_003, reservation.getDepositAmount() + reservation.getBalanceAmount());
     }
 
     @Test

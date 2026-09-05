@@ -10,5 +10,7 @@ public record ReservationResponse(
         @Schema(description = "예약 인원") Integer headcount,
         @Schema(description = "여행자명") String travelerName,
         @Schema(description = "예약 상태") ReservationStatus status,
-        @Schema(description = "결제 유예시간 만료 시점") LocalDateTime expiresAt) {
+        @Schema(description = "결제 유예시간 만료 시점") LocalDateTime expiresAt,
+        @Schema(description = "예약금") Integer depositAmount,
+        @Schema(description = "잔금") Integer balanceAmount) {
 }

@@ -49,7 +49,15 @@ public class Reservation {
 
     private LocalDateTime expiresAt;
 
-    private Reservation(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate) {
+    // Departure.salePrice(1인 가격)가 나중에 바뀌어도 이미 예약한 손님한테 영향이 없도록,
+    // 예약 시점의 총액을 예약금/잔금으로 나눠 스냅샷해둔다 - Payment가 결제 요청 금액을 검증할 기준이 됩니다.
+    private static final double DEPOSIT_RATIO = 0.1;
+
+    private Integer depositAmount; // 예약금
+
+    private Integer balanceAmount; // 잔금
+
+    private Reservation(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate, Integer salePrice) {
         this.departureId = departureId;
         this.headcount = headcount;
         this.travelerName = travelerName;
@@ -57,10 +65,14 @@ public class Reservation {
         this.requestedAt = LocalDateTime.now();
         this.saleEndDate = saleEndDate;
         this.expiresAt = capBySaleEnd(requestedAt.plusMinutes(GRACE_MINUTES));
+
+        int totalAmount = salePrice * headcount;
+        this.depositAmount = (int) (totalAmount * DEPOSIT_RATIO);
+        this.balanceAmount = totalAmount - depositAmount; // 비율로 따로 계산하지 않고 나머지로 구해 합계가 항상 totalAmount와 일치하게 함
     }
 
-    public static Reservation create(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate) {
-        return new Reservation(departureId, headcount, travelerName, saleEndDate);
+    public static Reservation create(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate, Integer salePrice) {
+        return new Reservation(departureId, headcount, travelerName, saleEndDate, salePrice);
     }
 
     public void confirm() {

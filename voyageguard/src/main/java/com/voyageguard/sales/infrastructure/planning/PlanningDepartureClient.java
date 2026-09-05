@@ -44,7 +44,8 @@ public class PlanningDepartureClient implements DepartureClient {
             return new DepartureView(
                     DepartureView.Status.valueOf(response.status()),
                     response.capacity(),
-                    response.saleEndDate()
+                    response.saleEndDate(),
+                    response.salePrice() // 회차 판매가격
             );
         } catch (HttpClientErrorException.NotFound e) {
             throw new IllegalArgumentException("존재하지 않는 회차입니다. id=" + departureId);
@@ -53,6 +54,6 @@ public class PlanningDepartureClient implements DepartureClient {
 
     // Planning의 DepartureResponse 중 Sales가 필요한 필드만 매핑 - 나머지(productTitle 등)는 무시
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record DepartureResponse(String status, Integer capacity, LocalDate saleEndDate) {
+    private record DepartureResponse(String status, Integer capacity, LocalDate saleEndDate, Integer salePrice) {
     }
 }
