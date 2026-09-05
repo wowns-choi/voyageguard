@@ -8,7 +8,6 @@ import com.voyageguard.planning.domain.product.Product;
 import com.voyageguard.planning.domain.product.ProductRepository;
 import com.voyageguard.planning.domain.product.ProductStatus;
 import com.voyageguard.planning.application.inventory.InventoryClient;
-import com.voyageguard.sales.application.InventoryService;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -21,17 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class DepartureService {
     private final DepartureRepository departureRepository;
     private final ProductRepository productRepository;
-    private final InventoryService inventoryService;
     private final InventoryClient inventoryClient;
 
-    /**
-     * Departure는 정의상 "실제 예약 가능한 단위"라 Inventory 없이 존재하면 안 되므로, 같은
-     * 트랜잭션에서 Inventory까지 함께 생성한다. Planning이 Sales(InventoryService)를 직접
-     * 호출하는 임시 조치 - 원래는 Kafka(DepartureCreated 이벤트)로 비동기 생성하는 게 BC
-     * 경계상 맞지만, 그러면 이벤트 릴레이 지연 동안 "회차는 있는데 예약은 안 되는" 창이 실제로
-     * 생겨서 지금은 동기 호출로 그 창 자체를 없앴다. Sales를 실제로 분리 배포하는 시점엔
-     * 이 호출을 Kafka 이벤트로 전환해야 함 (CLAUDE.md 참고).
-     */
+    // Departure는 "실제 예약 가능한 단위"라 Inventory 없이 존재하면 안 되므로, 재고 생성을
+    // REST로 동기 호출한다 - 실패하면 예외가 전파되어 Departure 저장도 함께 롤백됨(카프카로
+    // 비동기 처리하면 재고 없는 회차가 존재하는 창이 생겨서 채택하지 않음).
     public Long create(Long productId, LocalDate departureDate, Integer minParticipants, Integer capacity,
                         String itinerary, LocalDate saleStartDate, LocalDate saleEndDate, Integer salePrice) {
         Product product = productRepository.findById(productId)
@@ -44,7 +37,7 @@ public class DepartureService {
                 itinerary, saleStartDate, saleEndDate, salePrice);
         Long departureId = departureRepository.save(departure).getId();
 
-        inventoryService.create(departureId, capacity);
+        inventoryClient.create(departureId, capacity);
 
         return departureId;
     }

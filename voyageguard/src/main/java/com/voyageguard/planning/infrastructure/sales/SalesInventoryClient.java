@@ -38,7 +38,20 @@ public class SalesInventoryClient implements InventoryClient {
         }
     }
 
+    // 이 호출이 실패하면 예외가 그대로 전파되어 Departure 저장까지 롤백됨 - 재고 없는 회차가 남지 않도록
+    @Override
+    public void create(Long departureId, Integer capacity) {
+        restClient.post()
+                .uri("/api/v1/inventories")
+                .body(new InventoryCreateRequest(departureId, capacity))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record InventoryRemainingResponse(Integer remainingCount) {
+    }
+
+    private record InventoryCreateRequest(Long departureId, Integer capacity) {
     }
 }
