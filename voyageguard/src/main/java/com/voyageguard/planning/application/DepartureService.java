@@ -61,9 +61,6 @@ public class DepartureService {
         return toResponse(getDeparture(id));
     }
 
-    // 조회 전용 - Departure/Product는 Planning 자체 DB에서, 잔여재고는 InventoryClient(동기 REST)로
-    // Sales에서 가져와 합침. MSA 대비 1단계 적용 후엔 더 이상 Sales DB를 직접 안 읽으므로
-    // readOnly=true(Planning 자신의 DB 트랜잭션 기준)로 다시 둬도 안전함.
     private DepartureResponse toResponse(Departure departure) {
         Product product = productRepository.findById(departure.getProductId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다. id=" + departure.getProductId()));

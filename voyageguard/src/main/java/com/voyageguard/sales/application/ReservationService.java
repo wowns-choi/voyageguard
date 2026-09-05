@@ -44,7 +44,7 @@ public class ReservationService {
 
         inventoryConcurrencyStrategy.decrease(departureId, headcount);
 
-        Reservation reservation = Reservation.create(departureId, headcount, travelerName, departure.saleEndDate());
+        Reservation reservation = Reservation.create(departureId, headcount, travelerName, departure.saleEndDate(), departure.salePrice());
         return reservationRepository.save(reservation).getId();
     }
 
@@ -64,12 +64,14 @@ public class ReservationService {
                 reservation.getHeadcount(),
                 reservation.getTravelerName(),
                 reservation.getStatus(),
-                reservation.getExpiresAt()
+                reservation.getExpiresAt(),
+                reservation.getDepositAmount(),
+                reservation.getBalanceAmount()
         );
     }
 
     /**
-     * 예약 -> 재고 있나? -> 있다 -> 결제로 간 경우,
+     * "예약 -> 재고 있나? -> 있다 -> 결제" 로 간 경우,
      * 결제 유예시간(Reservation.expiresAt) 안에 결제하지 않은 예약은 만료시킨다.
      */
     @Scheduled(fixedDelay = 60000) // 1분마다 - 유예기간 자체가 10분으로 짧아서 스캔 주기도 짧게
