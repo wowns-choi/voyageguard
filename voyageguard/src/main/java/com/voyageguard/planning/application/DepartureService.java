@@ -11,9 +11,12 @@ import com.voyageguard.planning.application.inventory.InventoryClient;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -22,9 +25,8 @@ public class DepartureService {
     private final ProductRepository productRepository;
     private final InventoryClient inventoryClient;
 
-    // Departure는 "실제 예약 가능한 단위"라 Inventory 없이 존재하면 안 되므로, 재고 생성을
-    // REST로 동기 호출한다 - 실패하면 예외가 전파되어 Departure 저장도 함께 롤백됨(카프카로
-    // 비동기 처리하면 재고 없는 회차가 존재하는 창이 생겨서 채택하지 않음).
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Long create(Long productId, LocalDate departureDate, Integer minParticipants, Integer capacity,
                         String itinerary, LocalDate saleStartDate, LocalDate saleEndDate, Integer salePrice) {
         Product product = productRepository.findById(productId)
@@ -35,11 +37,27 @@ public class DepartureService {
 
         Departure departure = Departure.create(productId, departureDate, minParticipants, capacity,
                 itinerary, saleStartDate, saleEndDate, salePrice);
-        Long departureId = departureRepository.save(departure).getId();
+        Long departureId = departureRepository.save(departure).getId(); // 1단계 - 여기서 즉시 커밋됨
 
-        inventoryClient.create(departureId, capacity);
+        /// SAGA
+        try {
+            inventoryClient.create(departureId, capacity); // 2단계
+        } catch (RuntimeException e) {
+            compensateFailedCreate(departureId, e); // 보상 트랜잭션
+            throw e;
+        }
 
         return departureId;
+    }
+
+    // 보상 트랜잭션 - 2단계(재고 생성) 실패 시 1단계(회차 저장)를 되돌림
+    private void compensateFailedCreate(Long departureId, RuntimeException cause) {
+        log.warn("재고 초기화 실패로 회차 생성을 보상(삭제)함. departureId={}", departureId, cause);
+        try {
+            departureRepository.deleteById(departureId);
+        } catch (RuntimeException compensationError) {
+            log.error("회차 생성 보상 트랜잭션(삭제)까지 실패 - 수동 확인 필요. departureId={}", departureId, compensationError);
+        }
     }
 
     @Transactional(readOnly = true)
