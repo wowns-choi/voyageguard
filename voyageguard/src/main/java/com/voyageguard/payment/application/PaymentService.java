@@ -1,5 +1,7 @@
 package com.voyageguard.payment.application;
 
+import com.voyageguard.common.outbox.OutboxEvent;
+import com.voyageguard.common.outbox.OutboxEventRepository;
 import com.voyageguard.payment.api.dto.PaymentRequestResponse;
 import com.voyageguard.payment.application.pg.PgApiException;
 import com.voyageguard.payment.application.pg.PgCancelResult;
@@ -8,26 +10,29 @@ import com.voyageguard.payment.application.pg.PgConfirmResult;
 import com.voyageguard.payment.application.reservation.ReservationClient;
 import com.voyageguard.payment.application.reservation.ReservationView;
 import com.voyageguard.payment.domain.payment.Payment;
+import com.voyageguard.payment.domain.payment.PaymentApprovedEvent;
 import com.voyageguard.payment.domain.payment.PaymentRepository;
 import com.voyageguard.payment.domain.payment.PaymentStatus;
 import com.voyageguard.payment.domain.payment.PaymentType;
-import com.voyageguard.sales.domain.reservation.Reservation;
-import com.voyageguard.sales.domain.reservation.ReservationRepository;
-import com.voyageguard.sales.domain.reservation.ReservationStatus;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
-    private final ReservationRepository reservationRepository;
     private final ReservationClient reservationClient;
     private final PgClient pgClient;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     // 예약 상태 검증을 동기 REST 호출함.
     public PaymentRequestResponse request(Long reservationId, PaymentType paymentType, Integer amount) {
@@ -66,8 +71,11 @@ public class PaymentService {
     }
 
     /**
-     * 결제 승인 및 예약 확정.
+     * 결제 승인.
      * 금액 위변조 검증을 PG 승인 요청보다 먼저 해서, 조작된 금액으로 실제 승인 API가 나가는 일이 없게 한다.
+     * 예약 확정은 여기서 직접 안 하고 PaymentApproved 이벤트로 Sales에 알린다(Choreography Saga) -
+     * PG 승인은 이미 벌어진 되돌릴 수 없는 사실이라, Sales 쪽 확정 처리가 실패해도 이 트랜잭션은
+     * 영향받으면 안 되기 때문.
      */
     public void confirmSuccess(String orderId, String paymentKey, Integer amount) {
         Payment payment = getPaymentByOrderId(orderId);
@@ -86,18 +94,45 @@ public class PaymentService {
             throw e;
         }
 
-        // 예약 확정
-        Reservation reservation = reservationRepository.findById(payment.getReservationId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약입니다. id=" + payment.getReservationId()));
-        if (reservation.getStatus() == ReservationStatus.REQUESTED) {
-            reservation.confirm();
-        }
+        publishPaymentApproved(payment);
     }
 
     /** 결제 실패 */
     public void confirmFailure(String orderId, String failureReason) {
         Payment payment = getPaymentByOrderId(orderId);
         payment.fail(failureReason);
+    }
+
+    // 보상 트랜잭션(자동 환불) - 카프카 중복 전달 대비, APPROVED 아니면 조용히 스킵
+    public void compensateConfirmFailure(Long paymentId, String reason) {
+        Payment payment = getPayment(paymentId);
+        if (payment.getStatus() != PaymentStatus.APPROVED) {
+            log.info("이미 처리된 결제라 보상(환불)을 건너뜀. paymentId={}, 현재 상태={}", paymentId, payment.getStatus());
+            return;
+        }
+
+        payment.requestRefund(reason);
+        PgCancelResult result = pgClient.cancel(payment.getPaymentKey(), reason, payment.getAmount());
+        payment.approveRefund(payment.getAmount(), result.canceledAt());
+    }
+
+    // Kafka로 바로 안 보내고, 같은 트랜잭션 안에서 outbox 테이블에 "보낼 것"만 원자적으로 기록
+    private void publishPaymentApproved(Payment payment) {
+        PaymentApprovedEvent event = new PaymentApprovedEvent(payment.getId(), payment.getReservationId());
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(event);
+        } catch (JacksonException e) {
+            throw new IllegalStateException("PaymentApproved 직렬화 실패", e);
+        }
+        outboxEventRepository.save(
+                OutboxEvent.create(
+                        "PaymentApproved",
+                        "payment.approved",
+                        payment.getReservationId().toString(), // key : 예약 id - 같은 예약에 대한 이벤트는 순서 보장
+                        payload
+                )
+        );
     }
 
     /** 환불 요청 */

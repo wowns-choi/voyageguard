@@ -75,9 +75,12 @@ public class Reservation {
         return new Reservation(departureId, headcount, travelerName, saleEndDate, salePrice);
     }
 
+    // EXPIRED도 확정 가능한 이유: 결제승인 이벤트가 만료 처리보다 늦게 도착하는 경합이 있을 수 있음
+    // (뒤늦게라도 결제한 손님을 되살려 확정시킴, 재고 재확보는 ReservationService가 먼저 처리).
+    // CANCELLED는 고객이 직접 취소한 것이라 뒤늦은 결제로 되살리면 안 되므로 대상에서 뺌.
     public void confirm() {
-        if (status != ReservationStatus.REQUESTED) {
-            throw new IllegalStateException("예약요청 상태에서만 확정할 수 있습니다. 현재 상태: " + status);
+        if (status != ReservationStatus.REQUESTED && status != ReservationStatus.EXPIRED) {
+            throw new IllegalStateException("예약요청 또는 만료 상태에서만 확정할 수 있습니다. 현재 상태: " + status);
         }
         this.status = ReservationStatus.CONFIRMED;
     }
