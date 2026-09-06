@@ -8,6 +8,7 @@ import com.voyageguard.sales.application.departure.DepartureView;
 import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
 import com.voyageguard.sales.domain.reservation.Reservation;
 import com.voyageguard.sales.domain.reservation.ReservationCancelledEvent;
+import com.voyageguard.sales.domain.reservation.ReservationConfirmFailedEvent;
 import com.voyageguard.sales.domain.reservation.ReservationRepository;
 import com.voyageguard.sales.domain.reservation.ReservationStatus;
 import com.voyageguard.sales.infrastructure.redis.WaitlistRankRepository;
@@ -52,6 +53,38 @@ public class ReservationService {
         Reservation reservation = getReservation(id);
         reservation.cancel();
         releaseInventoryAndNotify(reservation, "ReservationCancelled");
+    }
+
+    /**
+     * Payment의 PaymentApproved 이벤트를 받아 예약을 확정한다.
+     * 1) REQUESTED -> 그대로 확정.
+     * 2) CONFIRMED -> 이미 확정됨(다른 결제 건이 먼저 확정시켰거나 이벤트 중복 수신) - 멱등 처리.
+     * 3) EXPIRED ->
+     *   결제 유예시간(10분)이 지나서 예약을 만료 처리할 때 이미 재고를 반납했으므로, 확정 전에 재고를 다시 확보해야 함.
+     *   그 사이 다른 손님이 채갔으면 재고가 부족할 수 있음. 그럴 땐 확정 대신 보상(환불) 요청.
+     * 4) CANCELLED -> 고객이 직접 취소한 것을 뒤늦은 결제로 되살리면 안 되므로 보상(환불) 요청.
+     */
+    public void confirmFromPayment(Long paymentId, Long reservationId) {
+        Reservation reservation = getReservation(reservationId);
+
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
+            return;
+        }
+
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            notifyConfirmFailed(paymentId, reservationId, "고객이 이미 취소한 예약입니다."); // 환불 요청
+            return;
+        }
+
+        if (reservation.getStatus() == ReservationStatus.EXPIRED) {
+            if (inventoryConcurrencyStrategy.getRemainingCount(reservation.getDepartureId()) < reservation.getHeadcount()) {
+                notifyConfirmFailed(paymentId, reservationId, "만료 후 재고가 소진되어 확정할 수 없습니다."); // 환불 요청
+                return;
+            }
+            inventoryConcurrencyStrategy.decrease(reservation.getDepartureId(), reservation.getHeadcount());
+        }
+
+        reservation.confirm();
     }
 
     // MSA 대비 1단계: Payment가 예약 상태를 직접 DB로 안 읽고 이 API(동기 REST)로 조회하게 함
@@ -110,6 +143,25 @@ public class ReservationService {
                         "reservation.cancelled", // 토픽 : "예약이 취소됨" - 원인(취소/만료)과 무관하게 구독측 처리는 동일
                         reservation.getDepartureId().toString(), // Key : 회차 id
                         payload // 회차 id, 인원수
+                )
+        );
+    }
+
+    // 예약 확정 실패를 Payment에 알려 보상(환불)을 요청하는 이벤트 발행
+    private void notifyConfirmFailed(Long paymentId, Long reservationId, String reason) {
+        ReservationConfirmFailedEvent event = new ReservationConfirmFailedEvent(paymentId, reservationId, reason);
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(event);
+        } catch (JacksonException e) {
+            throw new IllegalStateException("ReservationConfirmFailed 직렬화 실패", e);
+        }
+        outboxEventRepository.save(
+                OutboxEvent.create(
+                        "ReservationConfirmFailed",
+                        "reservation.confirm-failed",
+                        paymentId.toString(),
+                        payload
                 )
         );
     }

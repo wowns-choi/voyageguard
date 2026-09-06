@@ -61,6 +61,24 @@ class ReservationTest {
     }
 
     @Test
+    void EXPIRED_상태에서_confirm_하면_CONFIRMED로_전이된다() {
+        Reservation reservation = createReservation();
+        reservation.expire();
+
+        reservation.confirm();
+
+        assertEquals(ReservationStatus.CONFIRMED, reservation.getStatus());
+    }
+
+    @Test
+    void CANCELLED_상태에서_confirm_하면_예외가_발생한다() {
+        Reservation reservation = createReservation();
+        reservation.cancel();
+
+        assertThrows(IllegalStateException.class, reservation::confirm);
+    }
+
+    @Test
     void REQUESTED_상태에서_cancel_하면_CANCELLED로_전이된다() {
         Reservation reservation = createReservation();
 
