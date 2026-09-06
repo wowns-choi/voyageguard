@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "authTransactionManager")
 public class MemberService {
 
     private final MemberRepository memberRepository;
@@ -31,7 +31,7 @@ public class MemberService {
                 .orElseGet(() -> memberRepository.save(Member.createSocial(email, name, provider, providerId)));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "authTransactionManager", readOnly = true)
     public Member get(Long id) {
         return memberRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다. id=" + id));

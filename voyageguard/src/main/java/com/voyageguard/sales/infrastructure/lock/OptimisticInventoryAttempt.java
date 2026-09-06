@@ -19,13 +19,13 @@ public class OptimisticInventoryAttempt {
 
     private final InventoryRepository inventoryRepository;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(transactionManager = "salesTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void decreaseOnce(Long departureId, int quantity) {
         find(departureId) // 재고조회
                 .decrease(quantity); // 감소
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(transactionManager = "salesTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void increaseOnce(Long departureId, int quantity) {
         find(departureId) // 재고조회
                 .increase(quantity); // 증가

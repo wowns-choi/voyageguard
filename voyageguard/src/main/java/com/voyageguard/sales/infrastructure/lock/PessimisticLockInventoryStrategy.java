@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "salesTransactionManager")
 // inventory.lock-strategy=pessimistic(또는 미설정 시 기본값)일 때만 빈으로 등록
 @ConditionalOnProperty(prefix = "inventory", name = "lock-strategy", havingValue = "pessimistic", matchIfMissing = true)
 public class PessimisticLockInventoryStrategy implements InventoryConcurrencyStrategy {

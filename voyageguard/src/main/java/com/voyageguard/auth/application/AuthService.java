@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "authTransactionManager", readOnly = true)
 public class AuthService {
 
     private final MemberRepository memberRepository;

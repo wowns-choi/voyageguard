@@ -19,14 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "planningTransactionManager")
 public class DepartureService {
     private final DepartureRepository departureRepository;
     private final ProductRepository productRepository;
     private final InventoryClient inventoryClient;
 
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(transactionManager = "planningTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public Long create(Long productId, LocalDate departureDate, Integer minParticipants, Integer capacity,
                         String itinerary, LocalDate saleStartDate, LocalDate saleEndDate, Integer salePrice) {
         Product product = productRepository.findById(productId)
@@ -60,14 +60,14 @@ public class DepartureService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "planningTransactionManager", readOnly = true)
     public List<DepartureResponse> listOpen() {
         return departureRepository.findByStatus(DepartureStatus.OPEN).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "planningTransactionManager", readOnly = true)
     public DepartureResponse get(Long id) {
         return toResponse(getDeparture(id));
     }

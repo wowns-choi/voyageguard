@@ -2,8 +2,6 @@ package com.voyageguard.payment.application;
 
 import com.voyageguard.common.exception.AuthenticationFailedException;
 import com.voyageguard.common.exception.AuthorizationFailedException;
-import com.voyageguard.common.outbox.OutboxEvent;
-import com.voyageguard.common.outbox.OutboxEventRepository;
 import com.voyageguard.common.security.CurrentMember;
 import com.voyageguard.payment.api.dto.PaymentRequestResponse;
 import com.voyageguard.payment.application.pg.PgApiException;
@@ -17,6 +15,8 @@ import com.voyageguard.payment.domain.payment.PaymentApprovedEvent;
 import com.voyageguard.payment.domain.payment.PaymentRepository;
 import com.voyageguard.payment.domain.payment.PaymentStatus;
 import com.voyageguard.payment.domain.payment.PaymentType;
+import com.voyageguard.payment.infrastructure.outbox.PaymentOutboxEvent;
+import com.voyageguard.payment.infrastructure.outbox.PaymentOutboxEventRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,13 +28,13 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "paymentTransactionManager")
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final ReservationClient reservationClient;
     private final PgClient pgClient;
-    private final OutboxEventRepository outboxEventRepository;
+    private final PaymentOutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final CurrentMember currentMember;
 
@@ -137,7 +137,7 @@ public class PaymentService {
             throw new IllegalStateException("PaymentApproved 직렬화 실패", e);
         }
         outboxEventRepository.save(
-                OutboxEvent.create(
+                PaymentOutboxEvent.create(
                         "PaymentApproved",
                         "payment.approved",
                         payment.getReservationId().toString(), // key : 예약 id - 같은 예약에 대한 이벤트는 순서 보장
