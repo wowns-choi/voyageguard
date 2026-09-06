@@ -69,6 +69,55 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  # 각 서비스의 /actuator/prometheus를 15초마다 긁어가서 시계열로 저장하는 메트릭 서버.
+  # host.docker.internal은 Docker Desktop(macOS/Windows) 전용으로 "컨테이너 -> 호스트"
+  # 접근에 쓰는 특수 DNS - 지금은 서비스들을 로컬에서 직접(gradlew bootRun) 띄우고 있어서
+  # 필요함. 나중에 K8s로 가면 서비스들도 컨테이너가 되므로 이 값은 서비스명으로 바뀔 것.
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # 로그 저장소. 로그 내용 전체가 아니라 라벨(job 등)만 색인해서 가볍다 - Elasticsearch류와의
+  # 가장 큰 차이점. 앱은 Loki 존재 자체를 몰라도 됨(그냥 콘솔/파일에 로그 찍기만 함).
+  loki:
+    image: grafana/loki:3.3.2
+    ports:
+      - "3100:3100"
+
+  # 로그 파일을 지켜보다가(tail) 새 줄이 생기면 Loki로 전송하는 수집 에이전트.
+  # 지금은 서비스들을 gradlew bootRun으로 직접 띄우고 있어서 각 레포의 logs/ 폴더를
+  # 상대경로로 마운트함(4개 서비스 레포가 이 레포와 형제 디렉토리로 clone돼있다는 전제) -
+  # 나중에 K8s로 가면 파일 대신 컨테이너 stdout을 읽는 방식으로 자연스럽게 바뀔 부분.
+  promtail:
+    image: grafana/promtail:3.3.2
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - ../voyageguard-planning/logs:/var/log/planning
+      - ../voyageguard-sales/logs:/var/log/sales
+      - ../voyageguard-payment/logs:/var/log/payment
+      - ../voyageguard-auth/logs:/var/log/auth
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  # Prometheus(+ 나중에 Loki)를 데이터소스로 붙여 시각화하는 대시보드 서버.
+  # 순수 시각화 도구라 앱 코드에는 영향 없음. admin/admin으로 로컬 로그인.
+  grafana:
+    image: grafana/grafana-oss:11.4.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - prometheus
+
 volumes:
   mysql-planning-data:
   mysql-sales-data:

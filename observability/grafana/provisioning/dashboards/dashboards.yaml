@@ -1,0 +1,13 @@
+# 이 폴더(observability/grafana/provisioning/dashboards/)에 있는 대시보드 JSON 파일들을
+# Grafana가 뜰 때 자동으로 읽어들이게 하는 설정. datasource.yml과 같은 방식(provisioning).
+apiVersion: 1
+
+providers:
+  - name: voyageguard
+    folder: voyageguard
+    type: file
+    # true로 안 두면 파일로 들어온 대시보드는 UI에서 수정 자체가 막힘 - 계속 UI에서 다듬고
+    # 마음에 들면 다시 JSON으로 내보내 파일을 덮어쓰는 흐름을 위해 true로 둠
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

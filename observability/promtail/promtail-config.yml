@@ -1,0 +1,38 @@
+server:
+  http_listen_port: 9080
+
+# 어디까지 읽었는지 기억해두는 파일 - Promtail이 재시작돼도 처음부터 다시 안 읽게 함
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: voyageguard-planning
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: voyageguard-planning
+          __path__: /var/log/planning/*.log
+
+  - job_name: voyageguard-sales
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: voyageguard-sales
+          __path__: /var/log/sales/*.log
+
+  - job_name: voyageguard-payment
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: voyageguard-payment
+          __path__: /var/log/payment/*.log
+
+  - job_name: voyageguard-auth
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: voyageguard-auth
+          __path__: /var/log/auth/*.log
