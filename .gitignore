@@ -11,3 +11,6 @@ voyageguard-context.md
 
 # 로컬 개발용 임시 테스트 페이지 (postman/과 같은 이유로 레포에 안 올림)
 voyageguard/src/main/resources/static/*-test.html
+
+# 로컬 전용 환경변수(구글 OAuth 클라이언트 시크릿 등) - 절대 커밋하지 않음
+voyageguard/local-env.sh
