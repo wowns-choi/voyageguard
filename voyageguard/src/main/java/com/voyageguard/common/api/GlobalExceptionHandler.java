@@ -1,6 +1,7 @@
 package com.voyageguard.common.api;
 
 import com.voyageguard.common.exception.AuthenticationFailedException;
+import com.voyageguard.common.exception.AuthorizationFailedException;
 import com.voyageguard.common.exception.BusinessException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationFailedException.class)
     public ProblemDetail handleAuthenticationFailed(AuthenticationFailedException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(AuthorizationFailedException.class)
+    public ProblemDetail handleAuthorizationFailed(AuthorizationFailedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
     }
 
     @ExceptionHandler(BusinessException.class)

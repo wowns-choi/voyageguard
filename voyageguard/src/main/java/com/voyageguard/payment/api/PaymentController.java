@@ -27,6 +27,8 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     @Operation(summary = "결제 요청", description = "예약요청 상태의 예약에 대해 결제를 요청하고, Toss 위젯 초기화에 필요한 값을 반환한다.")
+    @ApiResponse(responseCode = "401", description = "로그인 필요")
+    @ApiResponse(responseCode = "403", description = "본인의 예약이 아님")
     @ApiResponse(responseCode = "404", description = "존재하지 않는 예약")
     @ApiResponse(responseCode = "409", description = "예약요청 상태가 아니어서 결제 요청 불가")
     @PostMapping

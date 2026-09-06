@@ -23,6 +23,7 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @Operation(summary = "예약 요청", description = "모집중 상태의 회차에 대해 예약을 요청하고 재고를 차감한다.")
+    @ApiResponse(responseCode = "401", description = "로그인 필요")
     @ApiResponse(responseCode = "404", description = "존재하지 않는 회차 또는 재고")
     @ApiResponse(responseCode = "409", description = "모집중 상태가 아니거나 잔여 재고가 부족해 예약 불가")
     @PostMapping
@@ -38,6 +39,8 @@ public class ReservationController {
     }
 
     @Operation(summary = "예약 취소", description = "예약요청 또는 확정 상태의 예약을 취소하고 재고를 복구한다.")
+    @ApiResponse(responseCode = "401", description = "로그인 필요")
+    @ApiResponse(responseCode = "403", description = "본인의 예약이 아님")
     @ApiResponse(responseCode = "404", description = "존재하지 않는 예약 또는 재고")
     @ApiResponse(responseCode = "409", description = "예약요청 또는 확정 상태가 아니어서 취소 불가")
     @PostMapping("/{id}/cancel")

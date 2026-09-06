@@ -22,6 +22,7 @@ public class WaitlistController {
     private final WaitlistService waitlistService;
 
     @Operation(summary = "대기 등록", description = "모집중 상태의 회차에 재고 부족으로 대기를 등록한다.")
+    @ApiResponse(responseCode = "401", description = "로그인 필요")
     @ApiResponse(responseCode = "404", description = "존재하지 않는 회차")
     @ApiResponse(responseCode = "409", description = "모집중 상태가 아니어서 대기 등록 불가")
     @PostMapping
@@ -30,6 +31,8 @@ public class WaitlistController {
     }
 
     @Operation(summary = "내 순번 조회", description = "Redis Sorted Set 기준 현재 대기 순번(1부터 시작)을 조회한다.")
+    @ApiResponse(responseCode = "401", description = "로그인 필요")
+    @ApiResponse(responseCode = "403", description = "본인의 대기열이 아님")
     @ApiResponse(responseCode = "404", description = "존재하지 않는 대기열")
     @GetMapping("/{id}/rank")
     public Long rank(@PathVariable Long id) {

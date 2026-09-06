@@ -1,5 +1,8 @@
 package com.voyageguard.sales.application;
 
+import com.voyageguard.common.exception.AuthenticationFailedException;
+import com.voyageguard.common.exception.AuthorizationFailedException;
+import com.voyageguard.common.security.CurrentMember;
 import com.voyageguard.sales.application.departure.DepartureClient;
 import com.voyageguard.sales.application.departure.DepartureView;
 import com.voyageguard.sales.application.inventory.InventoryConcurrencyStrategy;
@@ -23,9 +26,12 @@ public class WaitlistService {
     private final DepartureClient departureClient;
     private final WaitlistRankRepository waitlistRankRepository;
     private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
+    private final CurrentMember currentMember;
 
     // MSA 대비 1단계: Planning의 Departure를 DB로 직접 안 읽고 DepartureClient(동기 REST)로 조회
     public Long join(Long departureId, Integer headcount, String travelerName) {
+        Long memberId = requireLogin();
+
         DepartureView departure = departureClient.get(departureId);
         if (departure.status() != DepartureView.Status.OPEN) {
             throw new IllegalStateException("모집중 상태의 회차만 대기 등록할 수 있습니다. 현재 상태: " + departure.status());
@@ -38,7 +44,7 @@ public class WaitlistService {
                     "정원(" + departure.capacity() + "명)보다 많은 인원으로는 대기 등록할 수 없습니다. 요청 인원: " + headcount);
         }
 
-        Waitlist waitlist = Waitlist.create(departureId, headcount, travelerName, departure.saleEndDate());
+        Waitlist waitlist = Waitlist.create(departureId, memberId, headcount, travelerName, departure.saleEndDate());
         Long id = waitlistRepository.save(waitlist).getId();
         try {
             waitlistRankRepository.add(departureId, id);
@@ -50,11 +56,21 @@ public class WaitlistService {
         return id;
     }
 
+    // 본인 대기열만 순번 조회 가능 - Waitlist는 Reservation.get()과 달리 다른 BC가 의존하는
+    // 내부 API가 아니라 순수 고객용 API라서, 소유권 검증을 여기서 바로 걸어도 기존 계약이 안 깨짐
     @Transactional(readOnly = true)
     public Long rank(Long id) {
         Waitlist waitlist = waitlistRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대기열입니다. id=" + id));
+        if (!waitlist.isOwnedBy(requireLogin())) {
+            throw new AuthorizationFailedException("본인의 대기열만 조회할 수 있습니다.");
+        }
         return waitlistRankRepository.rank(waitlist.getDepartureId(), id);
+    }
+
+    private Long requireLogin() {
+        return currentMember.memberId()
+                .orElseThrow(() -> new AuthenticationFailedException("로그인이 필요합니다."));
     }
 
     /**

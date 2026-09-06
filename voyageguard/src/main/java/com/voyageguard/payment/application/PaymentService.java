@@ -1,7 +1,10 @@
 package com.voyageguard.payment.application;
 
+import com.voyageguard.common.exception.AuthenticationFailedException;
+import com.voyageguard.common.exception.AuthorizationFailedException;
 import com.voyageguard.common.outbox.OutboxEvent;
 import com.voyageguard.common.outbox.OutboxEventRepository;
+import com.voyageguard.common.security.CurrentMember;
 import com.voyageguard.payment.api.dto.PaymentRequestResponse;
 import com.voyageguard.payment.application.pg.PgApiException;
 import com.voyageguard.payment.application.pg.PgCancelResult;
@@ -33,10 +36,18 @@ public class PaymentService {
     private final PgClient pgClient;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final CurrentMember currentMember;
 
     // 예약 상태 검증을 동기 REST 호출함.
     public PaymentRequestResponse request(Long reservationId, PaymentType paymentType, Integer amount) {
+        Long memberId = currentMember.memberId()
+                .orElseThrow(() -> new AuthenticationFailedException("로그인이 필요합니다."));
+
         ReservationView reservation = reservationClient.get(reservationId);
+        // 본인 예약에 대해서만 결제 요청 가능 - 예약 id만 알면 남의 예약도 대신 결제할 수 있던 문제를 막기 위함
+        if (!reservation.memberId().equals(memberId)) {
+            throw new AuthorizationFailedException("본인의 예약에 대해서만 결제를 요청할 수 있습니다.");
+        }
         if (reservation.status() != ReservationView.Status.REQUESTED && reservation.status() != ReservationView.Status.CONFIRMED) {
             throw new IllegalStateException("예약요청 또는 확정 상태에서만 결제를 요청할 수 있습니다. 현재 상태: " + reservation.status());
         }

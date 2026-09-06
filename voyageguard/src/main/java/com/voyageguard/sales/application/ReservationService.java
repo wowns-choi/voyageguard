@@ -1,7 +1,10 @@
 package com.voyageguard.sales.application;
 
+import com.voyageguard.common.exception.AuthenticationFailedException;
+import com.voyageguard.common.exception.AuthorizationFailedException;
 import com.voyageguard.common.outbox.OutboxEvent;
 import com.voyageguard.common.outbox.OutboxEventRepository;
+import com.voyageguard.common.security.CurrentMember;
 import com.voyageguard.sales.api.dto.ReservationResponse;
 import com.voyageguard.sales.application.departure.DepartureClient;
 import com.voyageguard.sales.application.departure.DepartureView;
@@ -31,9 +34,12 @@ public class ReservationService {
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final WaitlistRankRepository waitlistRankRepository;
+    private final CurrentMember currentMember;
 
     // MSA 대비 1단계: Planning의 Departure를 DB로 직접 안 읽고 DepartureClient(동기 REST)로 조회
     public Long request(Long departureId, Integer headcount, String travelerName) {
+        Long memberId = requireLogin();
+
         DepartureView departure = departureClient.get(departureId);
         if (departure.status() != DepartureView.Status.OPEN) {
             throw new IllegalStateException("모집중 상태의 회차만 예약할 수 있습니다. 현재 상태: " + departure.status());
@@ -45,12 +51,14 @@ public class ReservationService {
 
         inventoryConcurrencyStrategy.decrease(departureId, headcount);
 
-        Reservation reservation = Reservation.create(departureId, headcount, travelerName, departure.saleEndDate(), departure.salePrice());
+        Reservation reservation = Reservation.create(departureId, memberId, headcount, travelerName, departure.saleEndDate(), departure.salePrice());
         return reservationRepository.save(reservation).getId();
     }
 
+    // 본인 예약만 취소 가능 - 예약 ID만 알면 아무나 취소할 수 있던 문제를 막기 위함
     public void cancel(Long id) {
         Reservation reservation = getReservation(id);
+        requireOwnership(reservation);
         reservation.cancel();
         releaseInventoryAndNotify(reservation, "ReservationCancelled");
     }
@@ -87,13 +95,18 @@ public class ReservationService {
         reservation.confirm();
     }
 
-    // MSA 대비 1단계: Payment가 예약 상태를 직접 DB로 안 읽고 이 API(동기 REST)로 조회하게 함
+    // MSA 대비 1단계: Payment가 예약 상태를 직접 DB로 안 읽고 이 API(동기 REST)로 조회하게 함.
+    // 소유권 검증을 여기서 안 하는 이유: Payment가 로그인 세션 없이(서버 간 호출로) 이 API를
+    // 그대로 호출하는 기존 계약이 있어, 여기서 막으면 그 호출까지 깨짐 - 소유권 검증은 응답에
+    // 담긴 memberId를 갖고 각 호출자(cancel(), PaymentService.request())가 직접 하도록 함.
+    // "조회 자체"의 정보 노출(로그인만 하면 남의 예약 ID로 조회 가능)은 아직 남은 문제로 별도 처리 필요.
     @Transactional(readOnly = true)
     public ReservationResponse get(Long id) {
         Reservation reservation = getReservation(id);
         return new ReservationResponse(
                 reservation.getId(),
                 reservation.getDepartureId(),
+                reservation.getMemberId(),
                 reservation.getHeadcount(),
                 reservation.getTravelerName(),
                 reservation.getStatus(),
@@ -164,6 +177,17 @@ public class ReservationService {
                         payload
                 )
         );
+    }
+
+    private Long requireLogin() {
+        return currentMember.memberId()
+                .orElseThrow(() -> new AuthenticationFailedException("로그인이 필요합니다."));
+    }
+
+    private void requireOwnership(Reservation reservation) {
+        if (!reservation.isOwnedBy(requireLogin())) {
+            throw new AuthorizationFailedException("본인의 예약만 취소할 수 있습니다.");
+        }
     }
 
     private Reservation getReservation(Long id) {
