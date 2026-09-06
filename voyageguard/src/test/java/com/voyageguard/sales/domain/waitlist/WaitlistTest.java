@@ -4,7 +4,9 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WaitlistTest {
 
@@ -13,7 +15,7 @@ class WaitlistTest {
     }
 
     private Waitlist createWaitlist(LocalDate saleEndDate) {
-        return Waitlist.create(1L, 2, "홍길동", saleEndDate);
+        return Waitlist.create(1L, 10L, 2, "홍길동", saleEndDate);
     }
 
     @Test
@@ -21,8 +23,17 @@ class WaitlistTest {
         Waitlist waitlist = createWaitlist();
 
         assertEquals(1L, waitlist.getDepartureId());
+        assertEquals(10L, waitlist.getMemberId());
         assertEquals(2, waitlist.getHeadcount());
         assertEquals(WaitlistStatus.WAITING, waitlist.getStatus());
+    }
+
+    @Test
+    void isOwnedBy_대기등록한_회원_id와_같으면_true를_반환한다() {
+        Waitlist waitlist = createWaitlist();
+
+        assertTrue(waitlist.isOwnedBy(10L));
+        assertFalse(waitlist.isOwnedBy(99L));
     }
 
     @Test

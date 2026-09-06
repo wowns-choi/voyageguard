@@ -35,6 +35,7 @@ public class SalesReservationClient implements ReservationClient {
                     .body(ReservationResponse.class);
             return new ReservationView(
                     response.id(),
+                    response.memberId(),
                     ReservationView.Status.valueOf(response.status()),
                     response.depositAmount(),
                     response.balanceAmount()
@@ -46,6 +47,6 @@ public class SalesReservationClient implements ReservationClient {
 
     // Sales의 ReservationResponse 중 Payment가 필요한 필드만 매핑
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ReservationResponse(Long id, String status, Integer depositAmount, Integer balanceAmount) {
+    private record ReservationResponse(Long id, Long memberId, String status, Integer depositAmount, Integer balanceAmount) {
     }
 }

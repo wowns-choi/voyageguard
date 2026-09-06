@@ -4,7 +4,9 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReservationTest {
 
@@ -13,7 +15,7 @@ class ReservationTest {
     }
 
     private Reservation createReservation(LocalDate saleEndDate) {
-        return Reservation.create(1L, 2, "홍길동", saleEndDate, 100_000);
+        return Reservation.create(1L, 10L, 2, "홍길동", saleEndDate, 100_000);
     }
 
     @Test
@@ -21,8 +23,17 @@ class ReservationTest {
         Reservation reservation = createReservation();
 
         assertEquals(1L, reservation.getDepartureId());
+        assertEquals(10L, reservation.getMemberId());
         assertEquals(2, reservation.getHeadcount());
         assertEquals(ReservationStatus.REQUESTED, reservation.getStatus());
+    }
+
+    @Test
+    void isOwnedBy_예약한_회원_id와_같으면_true를_반환한다() {
+        Reservation reservation = createReservation();
+
+        assertTrue(reservation.isOwnedBy(10L));
+        assertFalse(reservation.isOwnedBy(99L));
     }
 
     @Test
@@ -34,7 +45,7 @@ class ReservationTest {
 
     @Test
     void create_시_잔금은_총액에서_예약금을_뺀_금액이다() {
-        Reservation reservation = Reservation.create(1L, 3, "홍길동", LocalDate.now().plusMonths(2), 100_001);
+        Reservation reservation = Reservation.create(1L, 10L, 3, "홍길동", LocalDate.now().plusMonths(2), 100_001);
 
         // totalAmount(300_003) * 0.1 = 30_000.3 -> depositAmount는 30_000으로 버려짐
         assertEquals(30_000, reservation.getDepositAmount());

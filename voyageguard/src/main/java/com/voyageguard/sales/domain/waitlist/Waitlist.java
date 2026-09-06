@@ -37,6 +37,9 @@ public class Waitlist {
     // Departure 를 객체가 아닌 ID로 참조한다 (Reference Other Aggregates by Identity Only)
     private Long departureId;
 
+    // 대기 등록한 회원(Auth BC의 Member)을 ID로만 참조 - 소유권 검증(내 순번 조회 시 본인 것인지)에 사용
+    private Long memberId;
+
     private Integer headcount;
 
     private String travelerName;
@@ -60,8 +63,9 @@ public class Waitlist {
     private static final long WAITING_MAX_WAIT_DAYS = 3;
     private static final long PROMOTED_GRACE_HOURS = 24;
 
-    private Waitlist(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate) {
+    private Waitlist(Long departureId, Long memberId, Integer headcount, String travelerName, LocalDate saleEndDate) {
         this.departureId = departureId;
+        this.memberId = memberId;
         this.headcount = headcount;
         this.travelerName = travelerName;
         this.status = WaitlistStatus.WAITING;
@@ -70,8 +74,12 @@ public class Waitlist {
         this.expiresAt = capBySaleEnd(createdAt.plusDays(WAITING_MAX_WAIT_DAYS));
     }
 
-    public static Waitlist create(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate) {
-        return new Waitlist(departureId, headcount, travelerName, saleEndDate);
+    public static Waitlist create(Long departureId, Long memberId, Integer headcount, String travelerName, LocalDate saleEndDate) {
+        return new Waitlist(departureId, memberId, headcount, travelerName, saleEndDate);
+    }
+
+    public boolean isOwnedBy(Long memberId) {
+        return this.memberId.equals(memberId);
     }
 
     public void promote() {

@@ -31,6 +31,9 @@ public class Reservation {
     // Departure 를 객체가 아닌 ID로 참조한다 (Reference Other Aggregates by Identity Only)
     private Long departureId;
 
+    // 예약한 회원(Auth BC의 Member)을 ID로만 참조 - 소유권 검증(취소/조회 시 본인 것인지)에 사용
+    private Long memberId;
+
     private Integer headcount; // 예약 인원수
 
     private String travelerName; // 예약한 사람 이름
@@ -57,8 +60,9 @@ public class Reservation {
 
     private Integer balanceAmount; // 잔금
 
-    private Reservation(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate, Integer salePrice) {
+    private Reservation(Long departureId, Long memberId, Integer headcount, String travelerName, LocalDate saleEndDate, Integer salePrice) {
         this.departureId = departureId;
+        this.memberId = memberId;
         this.headcount = headcount;
         this.travelerName = travelerName;
         this.status = ReservationStatus.REQUESTED;
@@ -71,8 +75,12 @@ public class Reservation {
         this.balanceAmount = totalAmount - depositAmount; // 비율로 따로 계산하지 않고 나머지로 구해 합계가 항상 totalAmount와 일치하게 함
     }
 
-    public static Reservation create(Long departureId, Integer headcount, String travelerName, LocalDate saleEndDate, Integer salePrice) {
-        return new Reservation(departureId, headcount, travelerName, saleEndDate, salePrice);
+    public static Reservation create(Long departureId, Long memberId, Integer headcount, String travelerName, LocalDate saleEndDate, Integer salePrice) {
+        return new Reservation(departureId, memberId, headcount, travelerName, saleEndDate, salePrice);
+    }
+
+    public boolean isOwnedBy(Long memberId) {
+        return this.memberId.equals(memberId);
     }
 
     // EXPIRED도 확정 가능한 이유: 결제승인 이벤트가 만료 처리보다 늦게 도착하는 경합이 있을 수 있음
