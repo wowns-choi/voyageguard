@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "salesTransactionManager")
 public class InventoryService {
     private final InventoryRepository inventoryRepository;
     private final InventoryCountRepository inventoryCountRepository;

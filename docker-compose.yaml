@@ -1,14 +1,52 @@
 services:
-  mysql:
+  # BC별로 완전히 독립된 MySQL 컨테이너 4개(Planning/Sales/Payment/Auth) - "다른 BC 테이블과
+  # SQL로 JOIN하는 백도어"를 물리적으로 원천 차단하기 위함. 컨테이너를 1개(스키마만 분리)가
+  # 아니라 4개로 가는 이유: 3번 단계(레포 물리 분리)에서 어차피 필요한 구성이고, Spring 쪽
+  # 코드(DataSource/EntityManagerFactory/TransactionManager 4세트)는 컨테이너가 1개든 4개든
+  # 완전히 동일해서(차이는 JDBC URL 하나뿐) 지금 4개로 가는 비용이 거의 없음.
+  mysql-planning:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: voyageguard1234
-      MYSQL_DATABASE: voyageguard
+      MYSQL_DATABASE: voyageguard_planning
     ports:
       - "3307:3306"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mysql-planning-data:/var/lib/mysql
+    command: --max_connections=200
+
+  mysql-sales:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: voyageguard1234
+      MYSQL_DATABASE: voyageguard_sales
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql-sales-data:/var/lib/mysql
     # 기본 151로는 Hikari 풀(100) + 낙관적 락 REQUIRES_NEW 여분을 감당 못해서 부하테스트를 위해 늘림
+    command: --max_connections=200
+
+  mysql-payment:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: voyageguard1234
+      MYSQL_DATABASE: voyageguard_payment
+    ports:
+      - "3309:3306"
+    volumes:
+      - mysql-payment-data:/var/lib/mysql
+    command: --max_connections=200
+
+  mysql-auth:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: voyageguard1234
+      MYSQL_DATABASE: voyageguard_auth
+    ports:
+      - "3310:3306"
+    volumes:
+      - mysql-auth-data:/var/lib/mysql
     command: --max_connections=200
 
   redis:
@@ -32,4 +70,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
 volumes:
-  mysql-data:
+  mysql-planning-data:
+  mysql-sales-data:
+  mysql-payment-data:
+  mysql-auth-data:

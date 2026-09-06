@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "planningTransactionManager")
 public class ProductPlanService {
     private final ProductPlanRepository productPlanRepository;
 

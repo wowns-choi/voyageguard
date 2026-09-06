@@ -2,9 +2,9 @@ package com.voyageguard.sales.application;
 
 import com.voyageguard.common.exception.AuthenticationFailedException;
 import com.voyageguard.common.exception.AuthorizationFailedException;
-import com.voyageguard.common.outbox.OutboxEvent;
-import com.voyageguard.common.outbox.OutboxEventRepository;
 import com.voyageguard.common.security.CurrentMember;
+import com.voyageguard.sales.infrastructure.outbox.SalesOutboxEvent;
+import com.voyageguard.sales.infrastructure.outbox.SalesOutboxEventRepository;
 import com.voyageguard.sales.api.dto.ReservationResponse;
 import com.voyageguard.sales.application.departure.DepartureClient;
 import com.voyageguard.sales.application.departure.DepartureView;
@@ -26,12 +26,12 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "salesTransactionManager")
 public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final DepartureClient departureClient;
     private final InventoryConcurrencyStrategy inventoryConcurrencyStrategy;
-    private final OutboxEventRepository outboxEventRepository;
+    private final SalesOutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final WaitlistRankRepository waitlistRankRepository;
     private final CurrentMember currentMember;
@@ -100,7 +100,7 @@ public class ReservationService {
     // 그대로 호출하는 기존 계약이 있어, 여기서 막으면 그 호출까지 깨짐 - 소유권 검증은 응답에
     // 담긴 memberId를 갖고 각 호출자(cancel(), PaymentService.request())가 직접 하도록 함.
     // "조회 자체"의 정보 노출(로그인만 하면 남의 예약 ID로 조회 가능)은 아직 남은 문제로 별도 처리 필요.
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "salesTransactionManager", readOnly = true)
     public ReservationResponse get(Long id) {
         Reservation reservation = getReservation(id);
         return new ReservationResponse(
@@ -151,7 +151,7 @@ public class ReservationService {
             throw new IllegalStateException(eventType + " 직렬화 실패", e);
         }
         outboxEventRepository.save(
-                OutboxEvent.create(
+                SalesOutboxEvent.create(
                         eventType,
                         "reservation.cancelled", // 토픽 : "예약이 취소됨" - 원인(취소/만료)과 무관하게 구독측 처리는 동일
                         reservation.getDepartureId().toString(), // Key : 회차 id
@@ -170,7 +170,7 @@ public class ReservationService {
             throw new IllegalStateException("ReservationConfirmFailed 직렬화 실패", e);
         }
         outboxEventRepository.save(
-                OutboxEvent.create(
+                SalesOutboxEvent.create(
                         "ReservationConfirmFailed",
                         "reservation.confirm-failed",
                         paymentId.toString(),

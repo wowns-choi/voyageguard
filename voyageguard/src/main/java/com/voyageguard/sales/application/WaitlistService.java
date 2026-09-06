@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "salesTransactionManager")
 public class WaitlistService {
     private final WaitlistRepository waitlistRepository;
     private final DepartureClient departureClient;
@@ -58,7 +58,7 @@ public class WaitlistService {
 
     // 본인 대기열만 순번 조회 가능 - Waitlist는 Reservation.get()과 달리 다른 BC가 의존하는
     // 내부 API가 아니라 순수 고객용 API라서, 소유권 검증을 여기서 바로 걸어도 기존 계약이 안 깨짐
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "salesTransactionManager", readOnly = true)
     public Long rank(Long id) {
         Waitlist waitlist = waitlistRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 대기열입니다. id=" + id));
