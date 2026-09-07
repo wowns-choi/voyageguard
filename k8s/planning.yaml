@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: planning
-          image: choijaejun/voyageguard-planning:559110e
+          image: choijaejun/voyageguard-planning:72c27c9
           ports:
             - containerPort: 8081
           env:
