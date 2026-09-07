@@ -21,3 +21,13 @@ voyageguard/local-env.sh
 # create-secrets.sh에 실제 값을 채운 로컬 전용 사본 - 절대 커밋 금지 (원본 create-secrets.sh는
 # 자리표시자만 있어서 커밋 가능, 이 파일명(*.local.sh)으로 실값 채운 사본을 구분해서 관리)
 k8s/*.local.sh
+
+# Terraform - state 파일엔 db_password 등 sensitive 변수 값이 평문으로 남아서 절대 커밋 금지.
+# .terraform/(provider 바이너리 캐시)와 plan 파일도 로컬 산출물이라 제외.
+# .terraform.lock.hcl은 반대로 커밋 대상(재현 가능한 provider 버전 고정용)이라 여기 안 넣음.
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/tfplan.out
+terraform/crash.log
+terraform/*.tfvars
