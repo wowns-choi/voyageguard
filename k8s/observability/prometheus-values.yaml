@@ -1,0 +1,27 @@
+# kube-prometheus-stack Helm 차트 커스터마이징 값.
+# Prometheus/Grafana를 K8s용 YAML로 손수 짜지 않고, 검증된 커뮤니티 Helm 차트를 씀
+# (VPC/EKS 때 terraform-aws-modules 쓴 것과 같은 이유 - 처음부터 손으로 짜는 건 비표준).
+#
+# 설치: helm install prometheus prometheus-community/kube-prometheus-stack -f prometheus-values.yaml
+
+grafana:
+  adminPassword: admin # 로컬 개발과 동일 - 데모용, 오래 켜둘 거면 반드시 바꿀 것
+
+  # Prometheus 데이터소스는 이 차트가 기본으로 자동 등록해줌. Loki는 별도 차트(loki-stack)라
+  # 여기서 수동으로 하나 더 추가함
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki:3100
+
+  # 로컬에서 이미 만들어둔 대시보드(voyageguard-overview.json)를 그대로 재사용 -
+  # install.sh가 먼저 만드는 ConfigMap(voyageguard-dashboard)을 여기서 참조
+  dashboardsConfigMaps:
+    default: voyageguard-dashboard
+
+# 우리 알람 규칙 4개 + Slack 연동은 Prometheus Alertmanager가 아니라 Grafana 자체
+# Alerting 기능으로 만들어뒀음 - 이 차트가 같이 설치하는 Alertmanager는 안 쓰는 거라 꺼서
+# 리소스 절약. (알람 규칙 자체는 배포 후 Grafana UI에서 다시 등록 필요 - README 참고)
+alertmanager:
+  enabled: false

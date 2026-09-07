@@ -1,0 +1,12 @@
+# grafana/loki-stack Helm 차트 - Loki + Promtail을 한 번에 설치해줌.
+# 설치: helm install loki grafana/loki-stack -f loki-values.yaml
+
+loki:
+  persistence:
+    enabled: false # 데모 목적 - 로그를 영구 저장할 필요 없음(짧게 띄웠다 허물 것이라서)
+
+promtail:
+  enabled: true
+  # 기본 설정만으로 모든 노드의 컨테이너 stdout을 DaemonSet으로 자동 수집함.
+  # docker-compose 때처럼 서비스별 로그 파일 경로(../voyageguard-planning/logs 등)를
+  # 일일이 지정할 필요가 없어짐 - 이게 K8s로 옮기면서 가장 크게 단순해지는 지점
