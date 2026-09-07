@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: sales
-          image: choijaejun/voyageguard-sales:41ca748
+          image: choijaejun/voyageguard-sales:f7f376b
           ports:
             - containerPort: 8082
           env:
