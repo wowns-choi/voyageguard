@@ -14,3 +14,10 @@ voyageguard/src/main/resources/static/*-test.html
 
 # 로컬 전용 환경변수(구글 OAuth 클라이언트 시크릿 등) - 절대 커밋하지 않음
 voyageguard/local-env.sh
+
+# docker-compose용 로컬 시크릿(구글 OAuth, Toss 등) - .env.example만 커밋, 실값은 안 올림
+.env
+
+# create-secrets.sh에 실제 값을 채운 로컬 전용 사본 - 절대 커밋 금지 (원본 create-secrets.sh는
+# 자리표시자만 있어서 커밋 가능, 이 파일명(*.local.sh)으로 실값 채운 사본을 구분해서 관리)
+k8s/*.local.sh
