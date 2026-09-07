@@ -44,9 +44,12 @@ spec:
               value: "PLAINTEXT"
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
-            # 기본 로그 저장 경로가 /tmp 밑이라 파드 재시작 시 유실 위험 - 아래 영구 볼륨 경로로 명시 이동
+            # 기본 로그 저장 경로가 /tmp 밑이라 파드 재시작 시 유실 위험 - 아래 영구 볼륨 경로로 명시 이동.
+            # 마운트 루트가 아니라 하위 폴더(logs)로 지정 - EBS(ext4) 볼륨 루트에 자동 생성되는
+            # lost+found 디렉토리를 Kafka가 "잘못된 토픽-파티션"으로 오인해 fatal fault로
+            # 죽는 문제가 실제로 있었음(마운트 루트를 그대로 로그 디렉토리로 쓰면 항상 재현됨)
             - name: KAFKA_LOG_DIRS
-              value: "/var/lib/kafka/data"
+              value: "/var/lib/kafka/data/logs"
           volumeMounts:
             - name: kafka-data
               mountPath: /var/lib/kafka/data
