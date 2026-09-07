@@ -90,6 +90,11 @@ spec:
   # (kafka-0.kafka 등)을 가지려면 필요함. 지금은 replica 1개라 체감 차이는 적지만,
   # 나중에 브로커를 늘리면(멀티 노드 클러스터) 이 방식이 꼭 필요해짐
   clusterIP: None
+  # 기본값(false)이면 Ready 상태인 파드만 DNS에 노출됨 - 근데 kafka-0 자신이 Ready가
+  # 되려면 컨트롤러 쿼럼(KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:19093)에 접속해야
+  # 하는데, 그 "kafka"라는 이름 자체가 Ready 전엔 DNS에 없어서 영원히 못 뜨는 순환
+  # 문제(닭이 먼저냐 달걀이 먼저냐)가 실제로 있었음 - true로 바꿔서 해결
+  publishNotReadyAddresses: true
   selector:
     app: kafka
   ports:
