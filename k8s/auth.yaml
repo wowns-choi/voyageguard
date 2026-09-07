@@ -52,17 +52,25 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          # 클라우드(t3.medium, 동시 기동)에선 로컬보다 부팅이 훨씬 느려서(실측 60~90초대)
+          # readiness/liveness의 initialDelaySeconds만으론 부팅 중 강제 재시작이 실제로
+          # 발생함 - startupProbe가 통과할 때까지 readiness/liveness 자체를 비활성화하는
+          # K8s 표준 패턴으로 전환(최대 5초*30회=150초까지 부팅 유예)
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            failureThreshold: 30
+            periodSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
-            initialDelaySeconds: 20
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
-            initialDelaySeconds: 30
             periodSeconds: 20
 ---
 apiVersion: v1
