@@ -37,7 +37,11 @@ spec:
     kind: Deployment
     name: sales
   minReplicas: 1
-  maxReplicas: 3
+  # RDS db.t4g.micro의 max_connections 한도 때문에 3으로 두면 레플리카가 동시에
+  # HikariCP 커넥션을 열다가 "Too many connections"로 크래시 -> 재시작 중 메모리
+  # 스파이크 -> HPA가 다시 늘림의 무한 루프에 실제로 빠졌음. 2로 낮춰서 방지
+  # (근본 해결은 RDS 인스턴스 클래스 상향 또는 Hikari pool size 축소 - 추후 과제)
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
