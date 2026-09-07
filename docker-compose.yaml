@@ -14,6 +14,12 @@ services:
     volumes:
       - mysql-planning-data:/var/lib/mysql
     command: --max_connections=200
+    # planning 서비스가 DB "컨테이너 시작"이 아니라 "접속 가능한 상태"까지 기다리게 함
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pvoyageguard1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   mysql-sales:
     image: mysql:8.0
@@ -26,6 +32,11 @@ services:
       - mysql-sales-data:/var/lib/mysql
     # 기본 151로는 Hikari 풀(100) + 낙관적 락 REQUIRES_NEW 여분을 감당 못해서 부하테스트를 위해 늘림
     command: --max_connections=200
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pvoyageguard1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   mysql-payment:
     image: mysql:8.0
@@ -37,6 +48,11 @@ services:
     volumes:
       - mysql-payment-data:/var/lib/mysql
     command: --max_connections=200
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pvoyageguard1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   mysql-auth:
     image: mysql:8.0
@@ -48,6 +64,11 @@ services:
     volumes:
       - mysql-auth-data:/var/lib/mysql
     command: --max_connections=200
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pvoyageguard1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7
@@ -117,6 +138,75 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     depends_on:
       - prometheus
+
+  # --- 앱 서비스 4개 (Docker Hub에 push된 이미지 기반) ---
+  # 포트폴리오 시연용: 이 4개 + 위 인프라만으로 `docker compose up -d` 한 방으로 전체 MSA가 뜸.
+  # 로컬 개발(gradlew bootRun)과는 별개 경로 - Prometheus 스크랩 대상은 아직 host.docker.internal
+  # 기준이라, 이 컨테이너들의 메트릭/로그는 관측성 스택에 안 잡히는 게 알려진 제약(다음 과제).
+  planning:
+    image: choijaejun/voyageguard-planning:latest
+    # profile 지정 - 그냥 `docker compose up -d`로는 안 뜨고, `--profile hub-images` 붙여야
+    # 뜸. 안 그러면 소스 직접 빌드(gradlew bootRun)로 개발하려는 사람이 인프라만 띄우려고
+    # `docker compose up -d` 했을 때 이 컨테이너도 같이 떠서 같은 포트를 두고 충돌 남
+    profiles: ["hub-images"]
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-planning:3306/voyageguard_planning
+      SALES_SERVICE_BASE_URL: http://sales:8082
+    depends_on:
+      mysql-planning:
+        condition: service_healthy
+
+  sales:
+    image: choijaejun/voyageguard-sales:latest
+    profiles: ["hub-images"]
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-sales:3306/voyageguard_sales
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PLANNING_SERVICE_BASE_URL: http://planning:8081
+    depends_on:
+      mysql-sales:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+
+  payment:
+    image: choijaejun/voyageguard-payment:latest
+    profiles: ["hub-images"]
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-payment:3306/voyageguard_payment
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SALES_SERVICE_BASE_URL: http://sales:8082
+      # 실제 Toss 테스트 키 없으면 결제 승인(PG 호출)만 안 되고 나머지는 정상 동작
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+    depends_on:
+      mysql-payment:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  auth:
+    image: choijaejun/voyageguard-auth:latest
+    profiles: ["hub-images"]
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-auth:3306/voyageguard_auth
+      # 구글 시크릿이 비어있으면 OAuth2Client 빈 생성 자체가 실패해 기동이 안 되는 걸 확인함(2026-09-07) -
+      # 더미 값으로 기동은 되게 하고, 구글 로그인 버튼만 비활성(로컬 이메일 회원가입/로그인은 정상)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
+    depends_on:
+      mysql-auth:
+        condition: service_healthy
 
 volumes:
   mysql-planning-data:

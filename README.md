@@ -33,8 +33,32 @@
 
 ## 로컬 실행
 
+### 방법 1 — Docker Hub 이미지로 한 번에 실행 (Java/Gradle 설치 불필요)
+
 ```bash
-# 1. 인프라 기동 (MySQL x4 + Redis + Kafka)
+git clone https://github.com/wowns-choi/voyageguard
+cd voyageguard
+docker compose --profile hub-images up -d
+```
+
+이 한 줄로 4개 마이크로서비스 + MySQL×4 + Redis + Kafka + 관측성 스택까지 전체 시스템이 뜹니다.
+각 서비스 이미지는 Docker Hub에 공개되어 있습니다.
+
+| 서비스 | Docker Hub |
+|---|---|
+| Planning | [choijaejun/voyageguard-planning](https://hub.docker.com/r/choijaejun/voyageguard-planning) |
+| Sales | [choijaejun/voyageguard-sales](https://hub.docker.com/r/choijaejun/voyageguard-sales) |
+| Payment | [choijaejun/voyageguard-payment](https://hub.docker.com/r/choijaejun/voyageguard-payment) |
+| Auth | [choijaejun/voyageguard-auth](https://hub.docker.com/r/choijaejun/voyageguard-auth) |
+
+구글 로그인/실제 Toss 결제 승인은 시크릿이 없어 비활성화되지만, 회원가입·로그인·상품기획·
+예약·결제요청 등 핵심 플로우는 정상 동작합니다. 구글/Toss 시크릿을 실제로 채우고 싶으면
+`.env.example`을 `.env`로 복사해 값을 채우세요.
+
+### 방법 2 — 소스 직접 빌드 (코드 수정/개발 시)
+
+```bash
+# 1. 인프라만 기동 (MySQL x4 + Redis + Kafka) - --profile 없이 실행하면 앱 컨테이너는 안 뜸
 docker compose up -d
 
 # 2. 각 서비스 레포를 clone 후 개별 실행
