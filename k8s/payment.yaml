@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: payment
-          image: choijaejun/voyageguard-payment:latest
+          image: choijaejun/voyageguard-payment:v1.0.0
           ports:
             - containerPort: 8083
           env:
