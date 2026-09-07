@@ -1,0 +1,14 @@
+# EKS는 aws-ebs-csi-driver 애드온을 붙여도 기본(default) StorageClass를 자동으로 만들어주지
+# 않음 - 클러스터에 원래 있던 gp2 StorageClass는 구버전 in-tree 프로비저너(kubernetes.io/aws-ebs)라
+# CSI 드라이버와 안 맞음. Kafka StatefulSet의 volumeClaimTemplate이 default StorageClass에
+# 의존하고 있어서, 이게 없으면 PVC가 계속 Pending으로 멈춤(실제로 겪은 문제).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3
