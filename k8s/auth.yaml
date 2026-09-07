@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: auth
-          image: choijaejun/voyageguard-auth:cd04e64
+          image: choijaejun/voyageguard-auth:b343ba4
           ports:
             - containerPort: 8084
           env:
